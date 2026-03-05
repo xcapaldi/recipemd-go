@@ -1,11 +1,41 @@
 package recipemd
 
 import (
-	"fmt"
+	"encoding/json"
 	"testing"
-
-	"github.com/yuin/goldmark/ast"
 )
+
+func TestParse_TitleAndDescription(t *testing.T) {
+	input := []byte(`# Guacamole
+
+Some people call it guac.
+
+It's delicious with chips.
+
+---
+
+- avocado
+`)
+	recipe, err := ParseRecipe(input)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+
+	b, _ := json.MarshalIndent(recipe, "", "  ")
+	t.Logf("Parsed recipe:\n%s", b)
+
+	if recipe.Title != "Guacamole" {
+		t.Errorf("Title = %q, want %q", recipe.Title, "Guacamole")
+	}
+
+	wantDesc := "Some people call it guac.\n\nIt's delicious with chips."
+	if recipe.Description == nil {
+		t.Fatal("Description is nil")
+	}
+	if *recipe.Description != wantDesc {
+		t.Errorf("Description = %q, want %q", *recipe.Description, wantDesc)
+	}
+}
 
 var sampleRecipe = []byte(`# Guacamole
 
@@ -28,24 +58,12 @@ Remove flesh from avocado and roughly mash with fork. Season to taste
 with salt, pepper and lemon juice.
 `)
 
-func TestParseAST(t *testing.T) {
-	node := parseToAST(sampleRecipe)
-	dumpAST(node, sampleRecipe, 0)
+func TestParse_FullRecipe(t *testing.T) {
+	recipe, err := ParseRecipe(sampleRecipe)
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	b, _ := json.MarshalIndent(recipe, "", "  ")
+	t.Logf("Parsed recipe:\n%s", b)
 }
 
-func dumpAST(n ast.Node, source []byte, depth int) {
-	indent := ""
-	for i := 0; i < depth; i++ {
-		indent += "  "
-	}
-	fmt.Printf("%s%s", indent, n.Kind())
-	if n.Type() == ast.TypeInline || n.Type() == ast.TypeBlock {
-		if text := n.Text(source); len(text) > 0 {
-			fmt.Printf(" %q", text)
-		}
-	}
-	fmt.Println()
-	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		dumpAST(c, source, depth+1)
-	}
-}
