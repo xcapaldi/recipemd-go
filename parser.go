@@ -338,9 +338,6 @@ func parseIngredientList(
 			if err != nil {
 				return nil, fmt.Errorf("parseIngredient: %w", err)
 			}
-			if ing.Name == "" {
-				return nil, fmt.Errorf("ingredient must have a name")
-			}
 			*ingredients = append(*ingredients, ing)
 			// Go to next item
 			if c.NextSibling() != nil {
@@ -440,6 +437,10 @@ func parseIngredient(c ast.Node, source []byte) (Ingredient, error) {
 
 	// 8. Let i be an ingredient with amount a, name n, link l
 	n = strings.TrimSpace(n)
+  if n == "" {
+    return Ingredient{}, fmt.Errorf("ingredient must have a name")
+  }
+
 	return Ingredient{Amount: a, Name: n, Link: l}, nil
 }
 
@@ -516,6 +517,12 @@ func findSingleLink(start ast.Node, source []byte) *ast.Link {
 	return link
 }
 
+// ParseAmountString parses an amount string into value and unit.
+// This is the exported version of parseAmount for CLI use.
+func ParseAmountString(s string) (Amount, error) {
+	return parseAmount(s)
+}
+
 // parseAmount parses an amount string into value and unit.
 // See: https://recipemd.org/specification.html#parsing-an-amount
 func parseAmount(s string) (Amount, error) {
@@ -570,7 +577,7 @@ func parseAmount(s string) (Amount, error) {
 		if negative {
 			val = -val
 		}
-		return Amount{Factor: formatDecimal(val), Unit: unit}, nil
+		return Amount{Factor: val, Unit: unit}, nil
 	} else if unit != nil {
 		return Amount{}, fmt.Errorf("unit without value: %q", s)
 	}
@@ -940,13 +947,6 @@ var vulgarFractionMap = map[rune]float64{
 	'⅕': 1.0 / 5, '⅖': 2.0 / 5, '⅗': 3.0 / 5, '⅘': 4.0 / 5,
 	'⅙': 1.0 / 6, '⅚': 5.0 / 6,
 	'⅛': 1.0 / 8, '⅜': 3.0 / 8, '⅝': 5.0 / 8, '⅞': 7.0 / 8,
-}
-
-func formatDecimal(f float64) string {
-	s := fmt.Sprintf("%.3f", f)
-	s = strings.TrimRight(s, "0")
-	s = strings.TrimRight(s, ".")
-	return s
 }
 
 func skipSetextUnderline(source []byte, pos int) int {
