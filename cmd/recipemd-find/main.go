@@ -59,6 +59,8 @@ type cliArgs struct {
 	folder      string
 	count       bool
 	searcher    string // external search program (e.g. "grep", "rg")
+	gfm         bool
+	frontmatter bool
 }
 
 func parseArgs(raw []string) (cliArgs, error) {
@@ -96,6 +98,10 @@ func parseArgs(raw []string) (cliArgs, error) {
 				return args, fmt.Errorf("missing value for %s", arg)
 			}
 			args.searcher = raw[i]
+		case "--gfm":
+			args.gfm = true
+		case "--frontmatter":
+			args.frontmatter = true
 		default:
 			if strings.HasPrefix(arg, "-") {
 				return args, fmt.Errorf("unknown option %q", arg)
@@ -109,6 +115,17 @@ func parseArgs(raw []string) (cliArgs, error) {
 		i++
 	}
 	return args, nil
+}
+
+func parserOpts(args cliArgs) []recipemd.Option {
+	var opts []recipemd.Option
+	if args.gfm {
+		opts = append(opts, recipemd.WithGithubFormattedMarkdown())
+	}
+	if args.frontmatter {
+		opts = append(opts, recipemd.WithFrontmatter())
+	}
+	return opts
 }
 
 func printUsage() {
@@ -135,6 +152,8 @@ Options:
                       files. The filter expression is translated to the
                       program's syntax. Candidate files are then parsed and
                       verified with the RecipeMD-aware filter.
+  --gfm               enable GitHub Flavored Markdown extensions
+  --frontmatter       strip YAML/TOML frontmatter before parsing
 `)
 }
 
@@ -173,7 +192,7 @@ func getFilteredRecipesBuiltin(args cliArgs) []parsedRecipe {
 			return nil
 		}
 
-		recipe, err := recipemd.NewParser().Parse(data)
+		recipe, err := recipemd.NewParser(parserOpts(args)...).Parse(data)
 		if err != nil {
 			if !args.noMessages {
 				relPath, _ := filepath.Rel(folder, path)
@@ -223,7 +242,7 @@ func getFilteredRecipesWithSearcher(args cliArgs) []parsedRecipe {
 			continue
 		}
 
-		recipe, err := recipemd.NewParser().Parse(data)
+		recipe, err := recipemd.NewParser(parserOpts(args)...).Parse(data)
 		if err != nil {
 			if !args.noMessages {
 				fmt.Fprintf(os.Stderr, "An error occurred, skipping %s: %v\n", path, err)

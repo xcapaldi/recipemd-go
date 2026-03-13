@@ -35,6 +35,8 @@ func main() {
 	yieldLong := flag.String("yield", "", "scale the recipe for yield Y, e.g. \"5 servings\"")
 	flatten := flag.Bool("f", false, "flatten ingredients and instructions of linked recipes into main recipe")
 	flattenLong := flag.Bool("flatten", false, "flatten ingredients and instructions of linked recipes into main recipe")
+	gfm := flag.Bool("gfm", false, "enable GitHub Flavored Markdown extensions")
+	frontmatter := flag.Bool("frontmatter", false, "strip YAML/TOML frontmatter before parsing")
 
 	flag.Parse()
 
@@ -111,8 +113,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Parse recipe
-	p := recipemd.NewParser()
+	// Build parser
+	var opts []recipemd.Option
+	if *gfm {
+		opts = append(opts, recipemd.WithGithubFormattedMarkdown())
+	}
+	if *frontmatter {
+		opts = append(opts, recipemd.WithFrontmatter())
+	}
+	p := recipemd.NewParser(opts...)
 	recipe, err := p.Parse(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing recipe: %v\n", err)
