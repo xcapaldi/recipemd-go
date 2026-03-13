@@ -16,14 +16,11 @@ import (
 // Commonmark compliant parser
 var markdownParser = goldmark.DefaultParser()
 
-// ParseRecipe converts a RecipeMD document into a Recipe struct.
+// ParseRecipe converts a RecipeMD document into a Recipe struct via a single
+// goldmark parse and linear AST walk.
 // See: https://recipemd.org/specification.html#parsing-a-recipe
-//
-// The document is split into sections at thematic breaks (---), then each
-// section is parsed independently: preamble (title, description, tags, yields),
-// ingredients, and instructions.
 func ParseRecipe(source []byte) (*Recipe, error) {
-	preamble, ingredients, remaining := splitSections(source)
+	document := markdownParser.Parse(text.NewReader(source))
 
 	recipe := &Recipe{
 		Yields:           []Amount{},
@@ -32,96 +29,130 @@ func ParseRecipe(source []byte) (*Recipe, error) {
 		IngredientGroups: []IngredientGroup{},
 	}
 
-	if err := parsePreamble(preamble, recipe); err != nil {
-    return nil, fmt.Errorf("parsePreamble: %w", err)
+	c := document.FirstChild()
+	if c == nil {
+		return nil, fmt.Errorf("recipe must have a title")
 	}
 
-	if ingredients == nil {
+	// --- Preamble: title ---
+	h, ok := c.(*ast.Heading)
+	if !ok {
+		return nil, fmt.Errorf("expected level 1 heading, got %T", c)
+	}
+	if h.Level != 1 {
+		return nil, fmt.Errorf("expected level 1 heading, got level %d", h.Level)
+	}
+	title, err := extractPlainText(h, source)
+	if err != nil {
+		return nil, fmt.Errorf("extractPlainText: %w", err)
+	}
+	recipe.Title = title
+
+	_, titleLineEnd := getDirectLineBounds(h)
+	descStart := skipSetextUnderline(source, titleLineEnd)
+	c = c.NextSibling()
+
+	// --- Preamble: description, tags, yields ---
+	var excludeRanges [][2]int
+	tagsFound, yieldsFound, tagsYieldsMode := false, false, false
+
+	for c != nil && c.Kind() != ast.KindThematicBreak {
+		p, isPara := c.(*ast.Paragraph)
+		if isPara {
+			if em, ok := isOnlyEmphasis(p, italic); ok {
+				if tagsFound {
+					return nil, fmt.Errorf("tags already set")
+				}
+				tagsText, err := extractPlainText(em, source)
+				if err != nil {
+					return nil, fmt.Errorf("extractPlainText: %w", err)
+				}
+				recipe.Tags = parseTags(tagsText)
+				tagsFound = true
+				tagsYieldsMode = true
+				if start, end := getDirectLineBounds(c); start >= 0 {
+					excludeRanges = append(excludeRanges, [2]int{start, end})
+				}
+				c = c.NextSibling()
+				continue
+			}
+			if em, ok := isOnlyEmphasis(p, bold); ok {
+				if yieldsFound {
+					return nil, fmt.Errorf("yields already set")
+				}
+				yieldsText, err := extractPlainText(em, source)
+				if err != nil {
+					return nil, fmt.Errorf("extractPlainText: %w", err)
+				}
+				yields, err := parseYields(yieldsText)
+				if err != nil {
+					return nil, fmt.Errorf("parseYields: %w", err)
+				}
+				recipe.Yields = yields
+				yieldsFound = true
+				tagsYieldsMode = true
+				if start, end := getDirectLineBounds(c); start >= 0 {
+					excludeRanges = append(excludeRanges, [2]int{start, end})
+				}
+				c = c.NextSibling()
+				continue
+			}
+			if tagsYieldsMode {
+				return nil, fmt.Errorf("unexpected content in tags/yields section")
+			}
+		}
+		c = c.NextSibling()
+	}
+
+	// --- First thematic break ---
+	if c == nil || c.Kind() != ast.KindThematicBreak {
 		return nil, fmt.Errorf("missing thematic break divider")
 	}
+	firstBreakPos := findThematicBreakAfter(descStart, source)
 
-	if err := parseIngredientsSection(ingredients, recipe); err != nil {
+	// Build description: source from after title to first break, minus tags/yields.
+	if firstBreakPos > descStart {
+		desc := excludeRangesFromSource(source[descStart:firstBreakPos], excludeRanges, descStart)
+		desc = strings.Trim(desc, "\n")
+		if desc != "" {
+			recipe.Description = &desc
+		}
+	}
+
+	c = c.NextSibling()
+
+	// --- Ingredients ---
+	if _, ok := c.(*ast.Paragraph); ok {
+		return nil, fmt.Errorf("paragraph not valid in ingredients section")
+	}
+	c, err = parseIngredientList(c, source, &recipe.Ingredients)
+	if err != nil {
+		return nil, err
+	}
+	c, err = parseIngredientGroup(c, source, &recipe.IngredientGroups, 0)
+	if err != nil {
 		return nil, err
 	}
 
-	if remaining != nil {
-		instructions := strings.Trim(string(remaining), "\n")
-		if instructions != "" {
-			recipe.Instructions = &instructions
+	// --- Second thematic break (optional) → instructions ---
+	if c != nil && c.Kind() == ast.KindThematicBreak {
+		breakPos := findThematicBreakAfter(firstBreakPos+1, source)
+		if breakPos >= 0 {
+			instrStart := breakLineEnd(breakPos, source)
+			instructions := strings.Trim(string(source[instrStart:]), "\n")
+			if instructions != "" {
+				recipe.Instructions = &instructions
+			}
 		}
 	}
 
 	return recipe, nil
 }
 
-// splitSections splits a RecipeMD source at thematic breaks (---) identified
-// by goldmark (which correctly ignores --- inside fenced code blocks, setext
-// H2 underlines, etc.). Returns up to three sections: preamble, ingredients,
-// instructions. Sections that don't exist are returned as nil.
-func splitSections(source []byte) (preamble, ingredients, instructions []byte) {
-	document := markdownParser.Parse(text.NewReader(source))
-
-	// Collect positions of real ThematicBreak nodes as identified by goldmark.
-	// ThematicBreak nodes don't have Lines(), so we find position by scanning
-	// forward. Track minPos to handle nodes with no valid bounds.
-	var breakPositions []int
-	minPos := 0
-	for c := document.FirstChild(); c != nil; c = c.NextSibling() {
-		if c.Kind() == ast.KindThematicBreak {
-			pos := findThematicBreakAfter(minPos, source)
-			if pos >= 0 {
-				breakPositions = append(breakPositions, pos)
-				// Next search starts after this break's line
-				minPos = pos
-				for minPos < len(source) && source[minPos] != '\n' {
-					minPos++
-				}
-				if minPos < len(source) {
-					minPos++
-				}
-			}
-		} else {
-			// Update minPos based on this node's bounds
-			_, end := getRecursiveSourceBounds(c, source)
-			if end > minPos {
-				minPos = end
-			}
-		}
-	}
-	if len(breakPositions) == 0 {
-		return source, nil, nil
-	}
-
-	// Compute the byte just past each break's newline (start of next section).
-	breakEnds := make([]int, len(breakPositions))
-	for i, pos := range breakPositions {
-		j := pos
-		for j < len(source) && source[j] != '\n' {
-			j++
-		}
-		if j < len(source) {
-			j++ // include the newline
-		}
-		breakEnds[i] = j
-	}
-
-	switch len(breakPositions) {
-	case 0:
-		return source, nil, nil
-	case 1:
-		return source[:breakPositions[0]], source[breakEnds[0]:], nil
-	default:
-		return source[:breakPositions[0]],
-			source[breakEnds[0]:breakPositions[1]],
-			source[breakEnds[1]:]
-	}
-}
-
-// findThematicBreakAfter finds the byte offset of the first thematic break
-// line (3+ dashes) at or after minPos.
+// findThematicBreakAfter finds the byte offset of the first line of 3+ dashes
+// at or after minPos.
 func findThematicBreakAfter(minPos int, source []byte) int {
 	pos := minPos
-	// Advance to line start if mid-line
 	if pos > 0 && pos < len(source) && source[pos-1] != '\n' {
 		for pos < len(source) && source[pos] != '\n' {
 			pos++
@@ -130,139 +161,31 @@ func findThematicBreakAfter(minPos int, source []byte) int {
 			pos++
 		}
 	}
-
 	for pos < len(source) {
 		lineStart := pos
 		lineEnd := lineStart
 		for lineEnd < len(source) && source[lineEnd] != '\n' {
 			lineEnd++
 		}
-
 		line := bytes.TrimSpace(source[lineStart:lineEnd])
 		if len(line) >= 3 && len(bytes.Trim(line, "-")) == 0 {
 			return lineStart
 		}
-
 		pos = lineEnd + 1
 	}
 	return -1
 }
 
-// parsePreamble extracts title, description, tags, and yields from the preamble
-// section (everything before the first thematic break).
-// See: https://recipemd.org/specification.html#parsing-a-recipe steps 2–6
-func parsePreamble(section []byte, recipe *Recipe) error {
-	document := markdownParser.Parse(text.NewReader(section))
-
-	// 2. Parse title: first block must be a level-1 heading.
-	c := document.FirstChild()
-	if c == nil {
-		return fmt.Errorf("recipe must have a title")
+// breakLineEnd returns the byte offset just past the newline of a break line.
+func breakLineEnd(breakPos int, source []byte) int {
+	j := breakPos
+	for j < len(source) && source[j] != '\n' {
+		j++
 	}
-	h, ok := c.(*ast.Heading)
-	if !ok {
-		return fmt.Errorf("expected level 1 heading, got %T", c)
+	if j < len(source) {
+		j++
 	}
-	if h.Level != 1 {
-		return fmt.Errorf("expected level 1 heading, got level %d", h.Level)
-	}
-	title, err := extractPlainText(h, section)
-	if err != nil {
-		return fmt.Errorf("extractPlainText: %w", err)
-	}
-	recipe.Title = title
-
-	// 3. Description starts after the title line (plus setext underline if present).
-	// We use the heading's own line end rather than the next sibling's start
-	// because nodes like FencedCodeBlock have Lines() covering only their
-	// interior content, not the fence delimiters.
-	_, titleLineEnd := getDirectLineBounds(h)
-	descStart := skipSetextUnderline(section, titleLineEnd)
-
-	// 4–6. Walk remaining blocks to extract tags and yields.
-	// Once either is seen, any subsequent non-tags/yields paragraph is an error.
-	var excludeRanges [][2]int
-	tagsFound, yieldsFound, tagsYieldsMode := false, false, false
-
-	for c = c.NextSibling(); c != nil; c = c.NextSibling() {
-		p, ok := c.(*ast.Paragraph)
-		if !ok {
-			// Non-paragraph blocks (headings, code, etc.) are part of the description.
-			continue
-		}
-
-		if em, ok := isOnlyEmphasis(p, italic); ok {
-			// 6. Italic-only paragraph → tags.
-			if tagsFound {
-				return fmt.Errorf("tags already set")
-			}
-			tagsText, err := extractPlainText(em, section)
-			if err != nil {
-				return fmt.Errorf("extractPlainText: %w", err)
-			}
-			recipe.Tags = parseTags(tagsText)
-			tagsFound = true
-			tagsYieldsMode = true
-			if start, end := getDirectLineBounds(c); start >= 0 {
-				excludeRanges = append(excludeRanges, [2]int{start, end})
-			}
-		} else if em, ok := isOnlyEmphasis(p, bold); ok {
-			// 6. Bold-only paragraph → yields.
-			if yieldsFound {
-				return fmt.Errorf("yields already set")
-			}
-			yieldsText, err := extractPlainText(em, section)
-			if err != nil {
-				return fmt.Errorf("extractPlainText: %w", err)
-			}
-			yields, err := parseYields(yieldsText)
-			if err != nil {
-				return fmt.Errorf("parseYields: %w", err)
-			}
-			recipe.Yields = yields
-			yieldsFound = true
-			tagsYieldsMode = true
-			if start, end := getDirectLineBounds(c); start >= 0 {
-				excludeRanges = append(excludeRanges, [2]int{start, end})
-			}
-		} else if tagsYieldsMode {
-			// Any other paragraph after tags/yields is invalid.
-			return fmt.Errorf("unexpected content in tags/yields section")
-		}
-		// Otherwise: a regular description paragraph; included via exclusion logic below.
-	}
-
-	// 5. Build description: preamble from after title to end, minus tags/yields.
-	if descStart < len(section) {
-		desc := excludeRangesFromSource(section[descStart:], excludeRanges, descStart)
-		desc = strings.Trim(desc, "\n")
-		if desc != "" {
-			recipe.Description = &desc
-		}
-	}
-
-	return nil
-}
-
-// parseIngredientsSection extracts ingredients and ingredient groups from the
-// section between the two thematic breaks.
-// See: https://recipemd.org/specification.html#parsing-an-ingredient-list
-func parseIngredientsSection(section []byte, recipe *Recipe) error {
-	document := markdownParser.Parse(text.NewReader(section))
-
-	c := document.FirstChild()
-
-	// Paragraphs are not valid in the ingredients section.
-	if _, ok := c.(*ast.Paragraph); ok {
-		return fmt.Errorf("paragraph not valid in ingredients section")
-	}
-
-	c, err := parseIngredientList(c, section, &recipe.Ingredients)
-	if err != nil {
-		return err
-	}
-	_, err = parseIngredientGroup(c, section, &recipe.IngredientGroups, 0)
-	return err
+	return j
 }
 
 // parseIngredientGroup parses headings and lists in the ingredient section.
@@ -369,7 +292,7 @@ func parseIngredient(c ast.Node, source []byte) (Ingredient, error) {
 	var l *string
 
 	if c == nil {
-		return Ingredient{Name: n}, nil
+		return Ingredient{}, fmt.Errorf("ingredient must have a name")
 	}
 
 	// 5. Examine c
