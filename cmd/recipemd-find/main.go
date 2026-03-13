@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bufio"
+	"flag"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,19 +19,56 @@ import (
 const version = "0.1.0"
 
 func main() {
-	args, err := parseArgs(os.Args[1:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	showVersion := flag.Bool("v", false, "show version")
+	showVersionLong := flag.Bool("version", false, "show version")
+	expression := flag.String("e", "", "filter expression")
+	expressionLong := flag.String("expression", "", "filter expression")
+	noMessages := flag.Bool("s", false, "suppress error messages")
+	noMessagesLong := flag.Bool("no-messages", false, "suppress error messages")
+	outputOne := flag.Bool("1", false, "force output one entry per line")
+	outputCols := flag.Bool("C", false, "force multi-column output")
+	outputRows := flag.Bool("x", false, "multi-column output sorted across columns")
+	count := flag.Bool("c", false, "count number of uses")
+	countLong := flag.Bool("count", false, "count number of uses")
+	gfm := flag.Bool("gfm", false, "enable GitHub Flavored Markdown extensions")
+	frontmatter := flag.Bool("frontmatter", false, "strip YAML/TOML frontmatter before parsing")
 
-	if args.version {
+	flag.Parse()
+
+	if *showVersion || *showVersionLong {
 		fmt.Printf("recipemd-find %s\n", version)
 		os.Exit(0)
 	}
 
-	if args.action == "" {
+	args := cliArgs{
+		expression:  coalesce(*expression, *expressionLong),
+		noMessages:  *noMessages || *noMessagesLong,
+		count:       *count || *countLong,
+		gfm:         *gfm,
+		frontmatter: *frontmatter,
+		folder:      ".",
+	}
+
+	if *outputOne {
+		args.outputMulti = "no"
+	} else if *outputRows {
+		args.outputMulti = "rows"
+	} else if *outputCols {
+		args.outputMulti = "columns"
+	}
+
+	positional := flag.Args()
+	if len(positional) < 1 {
 		fmt.Fprintf(os.Stderr, "Error: an action is required (recipes, tags, ingredients, units)\n")
+		os.Exit(1)
+	}
+	args.action = positional[0]
+	if len(positional) > 1 {
+		args.folder = positional[1]
+	}
+
+	if args.count && args.action == "recipes" {
+		fmt.Fprintf(os.Stderr, "Error: -c/--count cannot be used with recipes action\n")
 		os.Exit(1)
 	}
 
@@ -50,71 +87,22 @@ func main() {
 	}
 }
 
+func coalesce(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
 type cliArgs struct {
-	version     bool
 	expression  string
 	noMessages  bool
 	outputMulti string // "no", "columns", "rows", or ""
 	action      string
 	folder      string
 	count       bool
-	searcher    string // external search program (e.g. "grep", "rg")
 	gfm         bool
 	frontmatter bool
-}
-
-func parseArgs(raw []string) (cliArgs, error) {
-	var args cliArgs
-	args.folder = "."
-
-	i := 0
-	for i < len(raw) {
-		arg := raw[i]
-		switch arg {
-		case "-v", "--version":
-			args.version = true
-		case "-h", "--help":
-			printUsage()
-			os.Exit(0)
-		case "-e", "--expression":
-			i++
-			if i >= len(raw) {
-				return args, fmt.Errorf("missing value for %s", arg)
-			}
-			args.expression = raw[i]
-		case "-s", "--no-messages":
-			args.noMessages = true
-		case "-1":
-			args.outputMulti = "no"
-		case "-C":
-			args.outputMulti = "columns"
-		case "-x":
-			args.outputMulti = "rows"
-		case "-c", "--count":
-			args.count = true
-		case "--searcher":
-			i++
-			if i >= len(raw) {
-				return args, fmt.Errorf("missing value for %s", arg)
-			}
-			args.searcher = raw[i]
-		case "--gfm":
-			args.gfm = true
-		case "--frontmatter":
-			args.frontmatter = true
-		default:
-			if strings.HasPrefix(arg, "-") {
-				return args, fmt.Errorf("unknown option %q", arg)
-			}
-			if args.action == "" {
-				args.action = arg
-			} else {
-				args.folder = arg
-			}
-		}
-		i++
-	}
-	return args, nil
 }
 
 func parserOpts(args cliArgs) []recipemd.Option {
@@ -128,58 +116,20 @@ func parserOpts(args cliArgs) []recipemd.Option {
 	return opts
 }
 
-func printUsage() {
-	fmt.Fprintf(os.Stderr, `Usage: recipemd-find [options] <action> [folder]
-
-Find recipes, ingredients and units by filter expression
-
-Actions:
-  recipes       list recipe paths
-  tags          list used tags
-  ingredients   list used ingredients
-  units         list used units
-
-Options:
-  -v, --version       show version
-  -h, --help          show help
-  -e, --expression E  filter expression, e.g. "cake and vegan or ingr:cheese"
-  -s, --no-messages   suppress error messages
-  -1                  force output to be one entry per line
-  -C                  force multi-column output
-  -x                  multi-column output sorted across columns
-  -c, --count         count number of uses (tags, ingredients, units only)
-  --searcher PROG     use external search program (grep, rg) to pre-filter
-                      files. The filter expression is translated to the
-                      program's syntax. Candidate files are then parsed and
-                      verified with the RecipeMD-aware filter.
-  --gfm               enable GitHub Flavored Markdown extensions
-  --frontmatter       strip YAML/TOML frontmatter before parsing
-`)
-}
-
 type parsedRecipe struct {
 	recipe *recipemd.Recipe
 	path   string
 }
 
 func getFilteredRecipes(args cliArgs) []parsedRecipe {
-	// When a searcher is specified with an expression, use it to pre-filter
-	// candidate files before doing full RecipeMD parsing.
-	if args.searcher != "" && args.expression != "" {
-		return getFilteredRecipesWithSearcher(args)
-	}
-	return getFilteredRecipesBuiltin(args)
-}
-
-func getFilteredRecipesBuiltin(args cliArgs) []parsedRecipe {
 	var results []parsedRecipe
 
 	folder := args.folder
-	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(folder, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() || !strings.HasSuffix(strings.ToLower(path), ".md") {
+		if d.IsDir() || !strings.HasSuffix(strings.ToLower(path), ".md") {
 			return nil
 		}
 
@@ -215,288 +165,6 @@ func getFilteredRecipesBuiltin(args cliArgs) []parsedRecipe {
 	}
 
 	return results
-}
-
-func getFilteredRecipesWithSearcher(args cliArgs) []parsedRecipe {
-	folder := args.folder
-
-	// Parse expression into AST, translate to external searcher, get candidate files
-	ast := parseExprAST(tokenize(args.expression))
-	candidates, err := evalSearcherAST(ast, args.searcher, folder, args.noMessages)
-	if err != nil {
-		if !args.noMessages {
-			fmt.Fprintf(os.Stderr, "Searcher error: %v\n", err)
-		}
-		return nil
-	}
-
-	// Parse candidates and verify with exact RecipeMD-aware filter
-	var results []parsedRecipe
-	for _, path := range candidates {
-		fullPath := filepath.Join(folder, path)
-		data, err := os.ReadFile(fullPath)
-		if err != nil {
-			if !args.noMessages {
-				fmt.Fprintf(os.Stderr, "An error occurred, skipping %s: %v\n", path, err)
-			}
-			continue
-		}
-
-		recipe, err := recipemd.NewParser(parserOpts(args)...).Parse(data)
-		if err != nil {
-			if !args.noMessages {
-				fmt.Fprintf(os.Stderr, "An error occurred, skipping %s: %v\n", path, err)
-			}
-			continue
-		}
-
-		// Exact filter verification — the external searcher is a text-level
-		// pre-filter that doesn't understand RecipeMD structure, so we
-		// confirm with the real filter.
-		if !matchesFilter(recipe, args.expression) {
-			continue
-		}
-
-		results = append(results, parsedRecipe{recipe: recipe, path: path})
-	}
-	return results
-}
-
-// --- Expression AST ---
-
-type exprNodeKind int
-
-const (
-	nodeLeaf exprNodeKind = iota
-	nodeAnd
-	nodeOr
-	nodeNot
-)
-
-type exprNode struct {
-	kind     exprNodeKind
-	term     string // for nodeLeaf: raw term like "cake", "ingr:cheese", "tag:vegan"
-	children []*exprNode
-}
-
-// parseExprAST parses a tokenized filter expression into an AST.
-func parseExprAST(tokens []string) *exprNode {
-	node, _ := parseOrAST(tokens)
-	return node
-}
-
-func parseOrAST(tokens []string) (*exprNode, []string) {
-	left, tokens := parseAndAST(tokens)
-	var orChildren []*exprNode
-	orChildren = append(orChildren, left)
-	for len(tokens) > 0 && strings.EqualFold(tokens[0], "or") {
-		tokens = tokens[1:]
-		right, rest := parseAndAST(tokens)
-		orChildren = append(orChildren, right)
-		tokens = rest
-	}
-	if len(orChildren) == 1 {
-		return orChildren[0], tokens
-	}
-	return &exprNode{kind: nodeOr, children: orChildren}, tokens
-}
-
-func parseAndAST(tokens []string) (*exprNode, []string) {
-	left, tokens := parsePrimaryAST(tokens)
-	var andChildren []*exprNode
-	andChildren = append(andChildren, left)
-	for len(tokens) > 0 && strings.EqualFold(tokens[0], "and") {
-		tokens = tokens[1:]
-		right, rest := parsePrimaryAST(tokens)
-		andChildren = append(andChildren, right)
-		tokens = rest
-	}
-	if len(andChildren) == 1 {
-		return andChildren[0], tokens
-	}
-	return &exprNode{kind: nodeAnd, children: andChildren}, tokens
-}
-
-func parsePrimaryAST(tokens []string) (*exprNode, []string) {
-	if len(tokens) == 0 {
-		return &exprNode{kind: nodeLeaf, term: ""}, tokens
-	}
-	token := tokens[0]
-	tokens = tokens[1:]
-	if strings.EqualFold(token, "not") {
-		child, rest := parsePrimaryAST(tokens)
-		return &exprNode{kind: nodeNot, children: []*exprNode{child}}, rest
-	}
-	return &exprNode{kind: nodeLeaf, term: token}, tokens
-}
-
-// --- External searcher evaluation ---
-
-// evalSearcherAST evaluates an expression AST using the external search program.
-// Returns relative paths of matching .md files.
-func evalSearcherAST(node *exprNode, searcher, folder string, noMessages bool) ([]string, error) {
-	switch node.kind {
-	case nodeLeaf:
-		if node.term == "" {
-			return nil, nil
-		}
-		return searcherGrep(searcher, folder, extractSearchTerm(node.term), false, noMessages)
-
-	case nodeNot:
-		return searcherGrep(searcher, folder, extractSearchTerm(node.children[0].term), true, noMessages)
-
-	case nodeAnd:
-		// Intersection: start with first child's results, narrow down
-		result, err := evalSearcherAST(node.children[0], searcher, folder, noMessages)
-		if err != nil {
-			return nil, err
-		}
-		resultSet := stringSet(result)
-		for _, child := range node.children[1:] {
-			childFiles, err := evalSearcherAST(child, searcher, folder, noMessages)
-			if err != nil {
-				return nil, err
-			}
-			resultSet = intersect(resultSet, stringSet(childFiles))
-		}
-		return setToSlice(resultSet), nil
-
-	case nodeOr:
-		// Union: combine all children's results
-		resultSet := make(map[string]bool)
-		for _, child := range node.children {
-			childFiles, err := evalSearcherAST(child, searcher, folder, noMessages)
-			if err != nil {
-				return nil, err
-			}
-			for _, f := range childFiles {
-				resultSet[f] = true
-			}
-		}
-		return setToSlice(resultSet), nil
-	}
-	return nil, nil
-}
-
-// extractSearchTerm strips the ingr:/tag: prefix since the external tool
-// searches raw text and can't distinguish RecipeMD sections structurally.
-func extractSearchTerm(term string) string {
-	lower := strings.ToLower(term)
-	if strings.HasPrefix(lower, "ingr:") {
-		return term[5:]
-	}
-	if strings.HasPrefix(lower, "tag:") {
-		return term[4:]
-	}
-	return term
-}
-
-// searcherGrep runs the external search program and returns matching relative paths.
-// If invert is true, returns files that do NOT match the pattern.
-func searcherGrep(searcher, folder, pattern string, invert bool, noMessages bool) ([]string, error) {
-	prog := filepath.Base(searcher)
-	var cmdArgs []string
-
-	switch prog {
-	case "rg", "ripgrep":
-		// rg -li pattern -g "*.md" folder
-		// rg --files-without-match -i pattern -g "*.md" folder
-		cmdArgs = append(cmdArgs, "-i")
-		if invert {
-			cmdArgs = append(cmdArgs, "--files-without-match")
-		} else {
-			cmdArgs = append(cmdArgs, "-l")
-		}
-		cmdArgs = append(cmdArgs, "-g", "*.md", "--", pattern, folder)
-
-	case "grep":
-		// grep -rli pattern --include="*.md" folder
-		// grep -rLi pattern --include="*.md" folder
-		cmdArgs = append(cmdArgs, "-r", "-i")
-		if invert {
-			cmdArgs = append(cmdArgs, "-L")
-		} else {
-			cmdArgs = append(cmdArgs, "-l")
-		}
-		cmdArgs = append(cmdArgs, "--include=*.md", "--", pattern, folder)
-
-	default:
-		// Generic: assume grep-compatible interface
-		cmdArgs = append(cmdArgs, "-r", "-i")
-		if invert {
-			cmdArgs = append(cmdArgs, "-L")
-		} else {
-			cmdArgs = append(cmdArgs, "-l")
-		}
-		cmdArgs = append(cmdArgs, "--include=*.md", "--", pattern, folder)
-	}
-
-	cmd := exec.Command(searcher, cmdArgs...)
-	cmd.Stderr = os.Stderr
-	if noMessages {
-		cmd.Stderr = nil
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start %s: %w", searcher, err)
-	}
-
-	var files []string
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		// Convert to relative path
-		rel, err := filepath.Rel(folder, line)
-		if err != nil {
-			rel = line
-		}
-		files = append(files, rel)
-	}
-
-	// grep exits 1 when no matches found — that's not an error
-	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return files, nil
-		}
-		return files, nil // be lenient with searcher exit codes
-	}
-
-	return files, nil
-}
-
-func stringSet(items []string) map[string]bool {
-	s := make(map[string]bool, len(items))
-	for _, item := range items {
-		s[item] = true
-	}
-	return s
-}
-
-func intersect(a, b map[string]bool) map[string]bool {
-	result := make(map[string]bool)
-	for k := range a {
-		if b[k] {
-			result[k] = true
-		}
-	}
-	return result
-}
-
-func setToSlice(s map[string]bool) []string {
-	result := make([]string, 0, len(s))
-	for k := range s {
-		result = append(result, k)
-	}
-	sort.Strings(result)
-	return result
 }
 
 // matchesFilter evaluates a simple boolean filter expression against a recipe.
