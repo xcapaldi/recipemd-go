@@ -1,0 +1,5 @@
+# Recipe
+
+---
+
+- https://example.com
