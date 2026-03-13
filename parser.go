@@ -4,23 +4,252 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 )
 
-// Commonmark compliant parser
-var markdownParser = goldmark.DefaultParser()
+type Option func(*Parser)
 
-// ParseRecipe converts a RecipeMD document into a Recipe struct via a single
+func WithFrontmatter() Option   { return func(p *Parser) { p.Frontmatter = true } }
+func WithGithubFormattedMarkdown() Option { return func(p *Parser) {
+	p.goldmarkExtensions = append(p.goldmarkExtensions, extension.GFM)
+} }
+
+type Parser struct {
+	Frontmatter   bool
+	goldmarkProcessor goldmark.Markdown
+	goldmarkExtensions []goldmark.Extender
+}
+
+func NewParser(opts ...Option) (p *Parser) {
+	p = &Parser{}
+	for _, o := range opts {
+		o(p)
+	}
+
+	if len(p.goldmarkExtensions) > 0 {
+		p.goldmarkProcessor = goldmark.New(goldmark.WithExtensions(p.goldmarkExtensions...))
+		return
+	}
+
+	p.goldmarkProcessor = goldmark.New()
+	return
+}
+
+// RenderMarkdown formats a Recipe as RecipeMD markdown.
+func (p *Parser) RenderMarkdown(r *Recipe, rounding int) string {
+	var sb strings.Builder
+
+	sb.WriteString("# ")
+	sb.WriteString(r.Title)
+	sb.WriteString("\n")
+
+	if r.Description != nil && *r.Description != "" {
+		sb.WriteString("\n")
+		sb.WriteString(*r.Description)
+		sb.WriteString("\n")
+	}
+
+	if len(r.Tags) > 0 {
+		sb.WriteString("\n*")
+		sb.WriteString(strings.Join(r.Tags, ", "))
+		sb.WriteString("*\n")
+	}
+
+	if len(r.Yields) > 0 {
+		sb.WriteString("\n**")
+		yields := make([]string, len(r.Yields))
+		for i, y := range r.Yields {
+			yields[i] = y.Serialize(rounding)
+		}
+		sb.WriteString(strings.Join(yields, ", "))
+		sb.WriteString("**\n")
+	}
+
+	sb.WriteString("\n---\n")
+
+	renderMarkdownIngredientList(&sb, r.Ingredients, rounding)
+	renderMarkdownIngredientGroups(&sb, r.IngredientGroups, 2, rounding)
+
+	if r.Instructions != nil && *r.Instructions != "" {
+		sb.WriteString("\n---\n\n")
+		sb.WriteString(*r.Instructions)
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+func renderMarkdownIngredientList(sb *strings.Builder, ingredients []Ingredient, rounding int) {
+	if len(ingredients) == 0 {
+		return
+	}
+	sb.WriteString("\n")
+	for _, ing := range ingredients {
+		sb.WriteString("- ")
+		if ing.Amount != nil {
+			sb.WriteString("*")
+			sb.WriteString(ing.Amount.Serialize(rounding))
+			sb.WriteString("* ")
+		}
+		if ing.Link != nil {
+			sb.WriteString("[")
+			sb.WriteString(ing.Name)
+			sb.WriteString("](")
+			sb.WriteString(*ing.Link)
+			sb.WriteString(")")
+		} else {
+			sb.WriteString(ing.Name)
+		}
+		sb.WriteString("\n")
+	}
+}
+
+func renderMarkdownIngredientGroups(sb *strings.Builder, groups []IngredientGroup, level int, rounding int) {
+	for _, g := range groups {
+		sb.WriteString("\n")
+		sb.WriteString(strings.Repeat("#", level))
+		sb.WriteString(" ")
+		sb.WriteString(g.Title)
+		sb.WriteString("\n")
+		renderMarkdownIngredientList(sb, g.Ingredients, rounding)
+		renderMarkdownIngredientGroups(sb, g.IngredientGroups, level+1, rounding)
+	}
+}
+
+// Flatten resolves linked ingredients by parsing referenced recipe files
+// and inlining their ingredients. Links resolved relative to recipeFile dir.
+func (p *Parser) Flatten(r *Recipe, recipeFile string) error {
+	baseDir := filepath.Dir(recipeFile)
+	ingredients, err := p.flattenIngredients(r.Ingredients, baseDir)
+	if err != nil {
+		return fmt.Errorf("flattenIngredients: %w", err)
+	}
+	r.Ingredients = ingredients
+	groups, err := p.flattenIngredientGroups(r.IngredientGroups, baseDir)
+	if err != nil {
+		return fmt.Errorf("flattenIngredientGroups: %w", err)
+	}
+	r.IngredientGroups = groups
+	return nil
+}
+
+func (p *Parser) flattenIngredients(ingredients []Ingredient, baseDir string) ([]Ingredient, error) {
+	result := make([]Ingredient, 0, len(ingredients))
+	for _, ing := range ingredients {
+		if ing.Link != nil {
+			resolved, err := p.resolveLinkedRecipe(*ing.Link, baseDir, &ing)
+			if err != nil {
+				return nil, fmt.Errorf("resolveLinkedRecipe: %w", err)
+			}
+			result = append(result, resolved...)
+		} else {
+			result = append(result, ing)
+		}
+	}
+	return result, nil
+}
+
+func (p *Parser) flattenIngredientGroups(groups []IngredientGroup, baseDir string) ([]IngredientGroup, error) {
+	result := make([]IngredientGroup, 0, len(groups))
+	for _, g := range groups {
+		ingredients, err := p.flattenIngredients(g.Ingredients, baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("flattenIngredients: %w", err)
+		}
+		groups, err := p.flattenIngredientGroups(g.IngredientGroups, baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("flattenIngredientGroups: %w", err)
+		}
+		result = append(result, IngredientGroup{
+			Title:            g.Title,
+			Ingredients:      ingredients,
+			IngredientGroups: groups,
+		})
+	}
+	return result, nil
+}
+
+func (p *Parser) resolveLinkedRecipe(link string, baseDir string, parent *Ingredient) ([]Ingredient, error) {
+	if strings.Contains(link, "://") {
+		return []Ingredient{*parent}, nil
+	}
+
+	path := filepath.Join(baseDir, link)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("os.ReadFile: %w", err)
+	}
+
+	linked, err := p.Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("Parse: %w", err)
+	}
+
+	if parent.Amount != nil && len(linked.Yields) > 0 {
+		if err := linked.ScaleForYield(*parent.Amount); err != nil {
+			return nil, fmt.Errorf("linked.ScaleForYield: %w", err)
+		}
+	}
+
+	linkedDir := filepath.Dir(path)
+	flatIngredients, err := p.flattenIngredients(linked.Ingredients, linkedDir)
+	if err != nil {
+		return nil, fmt.Errorf("flattenIngredients: %w", err)
+	}
+	for _, g := range linked.IngredientGroups {
+		ingredients, err := p.flattenIngredients(g.Ingredients, linkedDir)
+		if err != nil {
+			return nil, fmt.Errorf("flattenIngredients: %w", err)
+		}
+		flatIngredients = append(flatIngredients, ingredients...)
+		groupIngredients, err := p.flattenGroupIngredients(g.IngredientGroups, linkedDir)
+		if err != nil {
+			return nil, fmt.Errorf("flattenGroupIngredients: %w", err)
+		}
+		flatIngredients = append(flatIngredients, groupIngredients...)
+	}
+
+	if len(flatIngredients) == 0 {
+		return []Ingredient{*parent}, nil
+	}
+	return flatIngredients, nil
+}
+
+func (p *Parser) flattenGroupIngredients(groups []IngredientGroup, baseDir string) ([]Ingredient, error) {
+	result := make([]Ingredient, 0, len(groups))
+	for _, g := range groups {
+		ingredients, err := p.flattenIngredients(g.Ingredients, baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("flattenIngredients: %w", err)
+		}
+		result = append(result, ingredients...)
+		groupIngredients, err := p.flattenGroupIngredients(g.IngredientGroups, baseDir)
+		if err != nil {
+			return nil, fmt.Errorf("flattenGroupIngredients: %w", err)
+		}
+		result = append(result, groupIngredients...)
+	}
+	return result, nil
+}
+
+// Parse converts a RecipeMD document into a Recipe struct via a single
 // goldmark parse and linear AST walk.
 // See: https://recipemd.org/specification.html#parsing-a-recipe
-func ParseRecipe(source []byte) (*Recipe, error) {
-	document := markdownParser.Parse(text.NewReader(source))
+func (p *Parser) Parse(source []byte) (*Recipe, error) {
+	if p.Frontmatter {
+		source = stripFrontmatter(source)
+	}
+
+	document := p.goldmarkProcessor.Parser().Parse(text.NewReader(source))
 
 	recipe := &Recipe{
 		Yields:           []Amount{},
@@ -335,12 +564,9 @@ func parseIngredient(c ast.Node, source []byte) (Ingredient, error) {
 		link := findSingleLink(afterAmount, source)
 
 		if isOnlyChild && link != nil {
-			// Set l to the link's destination
-			dest := encodeURLPath(string(link.Destination))
+			dest := encodeURLPath(link.destination)
 			l = &dest
-			// Set n to the link's text
-			linkText, _ := extractPlainText(link, source)
-			n = linkText
+			n = link.text
 		} else {
 			n = r
 		}
@@ -383,6 +609,9 @@ func convertInlineNodeToText(n ast.Node, source []byte) string {
 	if t, ok := n.(*ast.Text); ok {
 		return string(t.Value(source))
 	}
+	if al, ok := n.(*ast.AutoLink); ok {
+		return string(al.URL(source))
+	}
 	text, _ := extractPlainText(n, source)
 	if n.Kind() == ast.KindEmphasis {
 		return "*" + text + "*"
@@ -420,24 +649,37 @@ func getBlockSeparator(prev, curr ast.Node, source []byte) string {
 	return "\n\n" + listItemContinuationIndent
 }
 
-// findSingleLink checks if nodes from start consist only of whitespace and a single link
-func findSingleLink(start ast.Node, source []byte) *ast.Link {
-	var link *ast.Link
+type linkInfo struct {
+	destination string
+	text        string
+}
+
+// findSingleLink checks if nodes from start consist only of whitespace and a
+// single link (explicit or autolink). Returns nil if no link or multiple links.
+func findSingleLink(start ast.Node, source []byte) *linkInfo {
+	var found *linkInfo
 	for n := start; n != nil; n = n.NextSibling() {
 		if l, ok := n.(*ast.Link); ok {
-			if link != nil {
-				return nil // multiple links
+			if found != nil {
+				return nil
 			}
-			link = l
+			text, _ := extractPlainText(l, source)
+			found = &linkInfo{destination: string(l.Destination), text: text}
+		} else if al, ok := n.(*ast.AutoLink); ok {
+			if found != nil {
+				return nil
+			}
+			url := string(al.URL(source))
+			found = &linkInfo{destination: url, text: url}
 		} else if t, ok := n.(*ast.Text); ok {
 			if strings.TrimSpace(string(t.Value(source))) != "" {
-				return nil // non-whitespace text
+				return nil
 			}
 		} else {
-			return nil // other inline element
+			return nil
 		}
 	}
-	return link
+	return found
 }
 
 // ParseAmountString parses an amount string into value and unit.
@@ -884,6 +1126,54 @@ func skipSetextUnderline(source []byte, pos int) int {
 		next++
 	}
 	return next
+}
+
+// stripFrontmatter removes YAML (---) or TOML (+++) frontmatter from the
+// beginning of source. Returns source unchanged if no frontmatter is found.
+func stripFrontmatter(source []byte) []byte {
+	if len(source) < 3 {
+		return source
+	}
+	var fence []byte
+	if bytes.HasPrefix(source, []byte("---")) {
+		fence = []byte("---")
+	} else if bytes.HasPrefix(source, []byte("+++")) {
+		fence = []byte("+++")
+	} else {
+		return source
+	}
+
+	// Opening fence must be alone on the line (optional trailing whitespace)
+	firstNL := bytes.IndexByte(source, '\n')
+	if firstNL < 0 {
+		return source
+	}
+	if len(bytes.TrimSpace(source[:firstNL])) != len(fence) {
+		return source
+	}
+
+	// Find closing fence
+	rest := source[firstNL+1:]
+	for len(rest) > 0 {
+		lineEnd := bytes.IndexByte(rest, '\n')
+		var line []byte
+		if lineEnd < 0 {
+			line = rest
+		} else {
+			line = rest[:lineEnd]
+		}
+		if bytes.Equal(bytes.TrimSpace(line), fence) {
+			if lineEnd < 0 {
+				return nil
+			}
+			return rest[lineEnd+1:]
+		}
+		if lineEnd < 0 {
+			break
+		}
+		rest = rest[lineEnd+1:]
+	}
+	return source
 }
 
 func excludeRangesFromSource(src []byte, ranges [][2]int, offset int) string {

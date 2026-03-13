@@ -173,7 +173,7 @@ func getFilteredRecipesBuiltin(args cliArgs) []parsedRecipe {
 			return nil
 		}
 
-		recipe, err := recipemd.ParseRecipe(data)
+		recipe, err := recipemd.NewParser().Parse(data)
 		if err != nil {
 			if !args.noMessages {
 				relPath, _ := filepath.Rel(folder, path)
@@ -223,7 +223,7 @@ func getFilteredRecipesWithSearcher(args cliArgs) []parsedRecipe {
 			continue
 		}
 
-		recipe, err := recipemd.ParseRecipe(data)
+		recipe, err := recipemd.NewParser().Parse(data)
 		if err != nil {
 			if !args.noMessages {
 				fmt.Fprintf(os.Stderr, "An error occurred, skipping %s: %v\n", path, err)
