@@ -13,6 +13,7 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	east "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/text"
 )
 
@@ -21,11 +22,13 @@ type Option func(*Parser)
 func WithFrontmatter() Option   { return func(p *Parser) { p.Frontmatter = true } }
 func WithGithubFormattedMarkdown() Option { return func(p *Parser) {
 	p.goldmarkExtensions = append(p.goldmarkExtensions, extension.GFM)
+	p.hasTaskList = true
 } }
 
 type Parser struct {
-	Frontmatter   bool
-	goldmarkProcessor goldmark.Markdown
+	Frontmatter    bool
+	hasTaskList    bool
+	goldmarkProcessor  goldmark.Markdown
 	goldmarkExtensions []goldmark.Extender
 }
 
@@ -204,6 +207,7 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 	var excludeRanges [][2]int
 	tagsFound, yieldsFound, tagsYieldsMode := false, false, false
 
+	lastPreBreakEnd := descStart
 	for c != nil && c.Kind() != ast.KindThematicBreak {
 		p, isPara := c.(*ast.Paragraph)
 		if isPara {
@@ -249,6 +253,9 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 				return nil, fmt.Errorf("unexpected content in tags/yields section")
 			}
 		}
+		if _, end := getRecursiveSourceBounds(c, source); end > lastPreBreakEnd {
+			lastPreBreakEnd = end
+		}
 		c = c.NextSibling()
 	}
 
@@ -256,7 +263,7 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 	if c == nil || c.Kind() != ast.KindThematicBreak {
 		return nil, fmt.Errorf("missing thematic break divider")
 	}
-	firstBreakPos := findThematicBreakAfter(descStart, source)
+	firstBreakPos := findDashLine(source, lastPreBreakEnd)
 
 	// Build description: source from after title to first break, minus tags/yields.
 	if firstBreakPos > descStart {
@@ -273,33 +280,31 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 	if _, ok := c.(*ast.Paragraph); ok {
 		return nil, fmt.Errorf("paragraph not valid in ingredients section")
 	}
-	c, err = parseIngredientList(c, source, &recipe.Ingredients)
+	c, err = parseIngredientList(c, source, &recipe.Ingredients, p.hasTaskList)
 	if err != nil {
 		return nil, err
 	}
-	c, err = parseIngredientGroup(c, source, &recipe.IngredientGroups, 0)
+	c, err = parseIngredientGroup(c, source, &recipe.IngredientGroups, 0, p.hasTaskList)
 	if err != nil {
 		return nil, err
 	}
 
 	// --- Second thematic break (optional) → instructions ---
 	if c != nil && c.Kind() == ast.KindThematicBreak {
-		breakPos := findThematicBreakAfter(firstBreakPos+1, source)
-		if breakPos >= 0 {
-			instrStart := breakLineEnd(breakPos, source)
-			instructions := strings.Trim(string(source[instrStart:]), "\n")
-			if instructions != "" {
-				recipe.Instructions = &instructions
-			}
+		breakPos := findDashLine(source, firstBreakPos+1)
+		breakEnd := skipLine(source, breakPos)
+		instructions := strings.Trim(string(source[breakEnd:]), "\n")
+		if instructions != "" {
+			recipe.Instructions = &instructions
 		}
 	}
 
 	return recipe, nil
 }
 
-// findThematicBreakAfter finds the byte offset of the first line of 3+ dashes
-// at or after minPos.
-func findThematicBreakAfter(minPos int, source []byte) int {
+// findDashLine finds the byte offset of the first line of 3+ dashes at or
+// after minPos, aligning to line boundaries.
+func findDashLine(source []byte, minPos int) int {
 	pos := minPos
 	if pos > 0 && pos < len(source) && source[pos-1] != '\n' {
 		for pos < len(source) && source[pos] != '\n' {
@@ -324,16 +329,18 @@ func findThematicBreakAfter(minPos int, source []byte) int {
 	return -1
 }
 
-// breakLineEnd returns the byte offset just past the newline of a break line.
-func breakLineEnd(breakPos int, source []byte) int {
-	j := breakPos
-	for j < len(source) && source[j] != '\n' {
-		j++
+// skipLine returns the byte offset just past the newline at pos.
+func skipLine(source []byte, pos int) int {
+	if pos < 0 {
+		return len(source)
 	}
-	if j < len(source) {
-		j++
+	for pos < len(source) && source[pos] != '\n' {
+		pos++
 	}
-	return j
+	if pos < len(source) {
+		pos++
+	}
+	return pos
 }
 
 // parseIngredientGroup parses headings and lists in the ingredient section.
@@ -345,6 +352,7 @@ func parseIngredientGroup(
 	source []byte,
 	groups *[]IngredientGroup,
 	parentLevel int,
+	skipCheckbox bool,
 ) (ast.Node, error) {
 	for {
 		h, ok := c.(*ast.Heading)
@@ -369,11 +377,11 @@ func parseIngredientGroup(
 			*groups = append(*groups, g)
 			return nil, nil
 		}
-		c, err = parseIngredientList(c, source, &g.Ingredients)
+		c, err = parseIngredientList(c, source, &g.Ingredients, skipCheckbox)
 		if err != nil {
 			return nil, err
 		}
-		c, err = parseIngredientGroup(c, source, &g.IngredientGroups, l)
+		c, err = parseIngredientGroup(c, source, &g.IngredientGroups, l, skipCheckbox)
 		if err != nil {
 			return nil, err
 		}
@@ -389,6 +397,7 @@ func parseIngredientList(
 	c ast.Node,
 	source []byte,
 	ingredients *[]Ingredient,
+	skipCheckbox bool,
 ) (ast.Node, error) {
 	for {
 		// 1. Examine c
@@ -405,7 +414,7 @@ func parseIngredientList(
 
 		// 2. Collect ingredients
 		for {
-			ing, err := parseIngredient(c, source)
+			ing, err := parseIngredient(c, source, skipCheckbox)
 			if err != nil {
 				return nil, fmt.Errorf("parseIngredient: %w", err)
 			}
@@ -424,7 +433,7 @@ func parseIngredientList(
 
 // parseIngredient parses a block c into an ingredient.
 // See: https://recipemd.org/specification.html#parsing-an-ingredient
-func parseIngredient(c ast.Node, source []byte) (Ingredient, error) {
+func parseIngredient(c ast.Node, source []byte, skipCheckbox bool) (Ingredient, error) {
 	// 1. Examine c: If c is a list item, enter c
 	li, ok := c.(*ast.ListItem)
 	if !ok {
@@ -450,6 +459,13 @@ func parseIngredient(c ast.Node, source []byte) (Ingredient, error) {
 		firstInline = para.FirstChild()
 	} else if tb, ok := c.(*ast.TextBlock); ok {
 		firstInline = tb.FirstChild()
+	}
+	if skipCheckbox && firstInline != nil && firstInline.Kind() == east.KindTaskCheckBox {
+		firstInline = firstInline.NextSibling()
+		// skip whitespace text node after checkbox
+		if t, ok := firstInline.(*ast.Text); ok && strings.TrimSpace(string(t.Value(source))) == "" {
+			firstInline = firstInline.NextSibling()
+		}
 	}
 	if firstInline == nil {
 		// If c is not a paragraph, set n to verbatim contents of c
