@@ -24,7 +24,7 @@ func TestCanonical(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			recipe, parseErr := ParseRecipe(input)
+			recipe, parseErr := NewParser().Parse(input)
 
 			if isInvalid {
 				if parseErr == nil {

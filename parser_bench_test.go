@@ -16,8 +16,9 @@ func init() {
 }
 
 func BenchmarkParseRecipe(b *testing.B) {
+	p := NewParser()
 	for b.Loop() {
-		_, err := ParseRecipe(benchSource)
+		_, err := p.Parse(benchSource)
 		if err != nil {
 			b.Fatal(err)
 		}

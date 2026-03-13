@@ -113,7 +113,8 @@ func main() {
 	}
 
 	// Parse recipe
-	recipe, err := recipemd.ParseRecipe(data)
+	p := recipemd.NewParser()
+	recipe, err := p.Parse(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing recipe: %v\n", err)
 		os.Exit(1)
@@ -121,7 +122,7 @@ func main() {
 
 	// Flatten linked recipes
 	if flat {
-		if err := recipe.Flatten(filePath); err != nil {
+		if err := p.Flatten(recipe, filePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 		}
 	}
@@ -174,7 +175,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		fmt.Print(recipe.RenderMarkdown(rounding))
+		fmt.Print(p.RenderMarkdown(recipe, rounding))
 	}
 }
 
