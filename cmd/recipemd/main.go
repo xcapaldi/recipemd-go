@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -168,12 +167,12 @@ func main() {
 			fmt.Println(ing.Serialize(rounding))
 		}
 	} else if jsonOut {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(recipe); err != nil {
+		data, err := p.RenderJSON(recipe)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
 			os.Exit(1)
 		}
+		fmt.Println(string(data))
 	} else {
 		fmt.Print(p.RenderMarkdown(recipe, rounding))
 	}
