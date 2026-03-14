@@ -1,9 +1,12 @@
-// Flatten reads a RecipeMD file, inlines all locally-linked recipes, and
-// writes the combined recipe as markdown to stdout.
+// Renderhtml reads a RecipeMD file, flattens linked ingredients, and writes
+// an HTML <article> element to stdout.
 //
-// Usage: flatten <recipe.md>
+// Usage: renderhtml <recipe.md>
 //
-// Only local file links are resolved. HTTP(S) links are left as-is.
+// Linked ingredients are resolved and inlined before rendering. Only local
+// file links are resolved; HTTP(S) links are left as-is.
+//
+//	renderhtml recipe.md > recipe.html
 package main
 
 import (
@@ -16,7 +19,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: flatten <recipe.md>")
+		fmt.Fprintln(os.Stderr, "usage: renderhtml <recipe.md>")
 		os.Exit(1)
 	}
 
@@ -39,5 +42,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Print(p.RenderMarkdown(r, 2))
+	fmt.Println(p.RenderHTML(r, 3))
 }
