@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	recipemd "github.com/xcapaldi/recipemd-go"
+	"github.com/xcapaldi/recipemd-go/examples/helper"
 )
 
 // TestFlattenInlinesLinksRecursively verifies that linked ingredients are
@@ -28,7 +29,7 @@ func TestFlattenInlinesLinksRecursively(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := flatten(p, r, recipeFile); err != nil {
+	if err := helper.Flatten(p, r, recipeFile); err != nil {
 		t.Fatalf("flatten: %v", err)
 	}
 
@@ -57,7 +58,7 @@ func TestFlatten(t *testing.T) {
 			Ingredients:      []recipemd.Ingredient{{Name: "salt"}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
-		if err := flatten(p, r, "/fake/recipe.md"); err != nil {
+		if err := helper.Flatten(p, r, "/fake/recipe.md"); err != nil {
 			t.Fatal(err)
 		}
 		if len(r.Ingredients) != 1 || r.Ingredients[0].Name != "salt" {
@@ -72,7 +73,7 @@ func TestFlatten(t *testing.T) {
 			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: new("https://example.com/sauce.md")}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
-		if err := flatten(p, r, "/fake/recipe.md"); err != nil {
+		if err := helper.Flatten(p, r, "/fake/recipe.md"); err != nil {
 			t.Fatal(err)
 		}
 		if r.Ingredients[0].Link == nil {
@@ -94,7 +95,7 @@ func TestFlatten(t *testing.T) {
 			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: new("sauce.md"), Amount: &recipemd.Amount{Factor: 2, Unit: new("cups")}}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
-		if err := flatten(p, r, main); err != nil {
+		if err := helper.Flatten(p, r, main); err != nil {
 			t.Fatal(err)
 		}
 		if len(r.Ingredients) < 1 {
@@ -109,7 +110,7 @@ func TestFlatten(t *testing.T) {
 			Ingredients:      []recipemd.Ingredient{{Name: "x", Link: new("nonexistent.md")}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
-		if err := flatten(p, r, "/fake/recipe.md"); err == nil {
+		if err := helper.Flatten(p, r, "/fake/recipe.md"); err == nil {
 			t.Fatal("expected error for missing linked file")
 		}
 	})
@@ -131,7 +132,7 @@ func TestFlattenHTTPLinksPreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := flatten(p, r, recipeFile); err != nil {
+	if err := helper.Flatten(p, r, recipeFile); err != nil {
 		t.Fatalf("flatten: %v", err)
 	}
 
