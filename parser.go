@@ -17,21 +17,55 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
+// Option is a functional option for configuring a [Parser].
+// Options are passed to [NewParser] and applied before the first parse.
 type Option func(*Parser)
 
-func WithFrontmatter() Option   { return func(p *Parser) { p.Frontmatter = true } }
-func WithGithubFormattedMarkdown() Option { return func(p *Parser) {
-	p.goldmarkExtensions = append(p.goldmarkExtensions, extension.GFM)
-	p.hasTaskList = true
-} }
+// WithFrontmatter returns an [Option] that instructs the parser to strip
+// YAML (---) or TOML (+++) front matter from the source before parsing.
+//
+// Front matter is identified by a fence of three dashes or plus signs on its
+// own line at the very start of the document. The content up to and including
+// the closing fence is removed before the RecipeMD document is parsed.
+func WithFrontmatter() Option { return func(p *Parser) { p.Frontmatter = true } }
 
+// WithGithubFormattedMarkdown returns an [Option] that enables GitHub Flavored
+// Markdown (GFM) extensions in the underlying markdown processor.
+//
+// This adds support for tables, strikethrough, autolinks, task lists, and
+// other GFM features. Task-list checkboxes in ingredient items are
+// transparently skipped so that ingredient parsing is unaffected.
+func WithGithubFormattedMarkdown() Option {
+	return func(p *Parser) {
+		p.goldmarkExtensions = append(p.goldmarkExtensions, extension.GFM)
+		p.hasTaskList = true
+	}
+}
+
+// Parser parses RecipeMD documents and renders [Recipe] values back to
+// markdown or JSON.
+//
+// Create a Parser with [NewParser]. A single Parser instance is safe to reuse
+// across multiple calls to [Parser.Parse] and the render methods.
+//
+// The exported Frontmatter field reflects whether the [WithFrontmatter] option
+// was supplied at construction time. It should not be modified after the
+// Parser is created.
 type Parser struct {
-	Frontmatter    bool
-	hasTaskList    bool
+	// Frontmatter reports whether the parser strips YAML/TOML front matter
+	// before parsing. Set via [WithFrontmatter].
+	Frontmatter        bool
+	hasTaskList        bool
 	goldmarkProcessor  goldmark.Markdown
 	goldmarkExtensions []goldmark.Extender
 }
 
+// NewParser creates a new Parser, applying any supplied options.
+//
+// Available options are [WithFrontmatter] and [WithGithubFormattedMarkdown].
+// If no options are provided a plain CommonMark parser is used.
+//
+//	p := recipemd.NewParser(recipemd.WithFrontmatter())
 func NewParser(opts ...Option) (p *Parser) {
 	p = &Parser{}
 	for _, o := range opts {
@@ -47,9 +81,26 @@ func NewParser(opts ...Option) (p *Parser) {
 	return
 }
 
-// Parse converts a RecipeMD document into a Recipe struct via a single
-// goldmark parse and linear AST walk.
-// See: https://recipemd.org/specification.html#parsing-a-recipe
+// Parse converts a RecipeMD document into a [Recipe].
+//
+// r is an [io.Reader] providing a UTF-8-encoded RecipeMD document. The
+// document structure that Parse expects is:
+//
+//  1. An H1 heading containing the recipe title (required).
+//  2. An optional preamble: description paragraphs, an italic tags paragraph,
+//     and/or a bold yields paragraph, in any order.
+//  3. A thematic break (---) separating the preamble from the ingredients.
+//  4. An ingredient section: unordered lists of ingredients and optional
+//     sub-headings that introduce named [IngredientGroup] sections.
+//  5. An optional second thematic break followed by free-form instructions.
+//
+// Parse collects all structural and value-level errors via [errors.Join],
+// returning a non-nil error that may wrap one or more [*ParseError] values.
+// Non-fatal errors are accumulated rather than halting the parse, so all
+// problems are reported at once. A nil error means the document was valid.
+//
+// See https://recipemd.org/specification.html#parsing-a-recipe for the full
+// specification.
 func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 	source, err := io.ReadAll(r)
 	if err != nil {
@@ -520,8 +571,21 @@ func findSingleLink(start ast.Node, source []byte) *linkInfo {
 	return found
 }
 
-// ParseAmountString parses an amount string into value and unit.
-// This is the exported version of parseAmount for CLI use.
+// ParseAmountString parses a human-readable amount string into an [Amount].
+//
+// The following number formats are recognised (case-insensitive):
+//   - Mixed number:       "1 1/2" or "1 ½"
+//   - Proper fraction:    "1/2"
+//   - Vulgar fraction:    "½", "¾", etc. (Unicode fraction characters)
+//   - Decimal:            "1.5" or "1,5"
+//   - Integer:            "3"
+//
+// An optional sign (- for negative) may precede the number. Any non-numeric
+// text following the number is interpreted as the unit (e.g. "1.5 cups" →
+// Factor=1.5, Unit="cups").
+//
+// ParseAmountString returns an error if a unit is present without a numeric
+// value, or if the input cannot be parsed as any recognised format.
 func ParseAmountString(s string) (Amount, error) {
 	return parseAmount(s)
 }
