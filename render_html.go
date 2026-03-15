@@ -66,15 +66,24 @@ const htmlGroupsTmpl = `{{ range . -}}
 </div>
 {{ end }}`
 
-// WARNING: WIP — not ready for production use.
-// Known issues:
-//   - Ingredient links point to raw .md file paths with no resolution or conversion.
+// RenderHTML renders r as an HTML <article> element.
 //
-// RenderHTML formats a Recipe as an HTML <article> element.
-// Fields containing raw markdown (Description, Instructions) are parsed and
-// rendered to HTML. Ingredient amounts and yields are wrapped in <em>/<strong>
-// to restore the emphasis that markdown formatting conveys. All elements carry
-// class attributes matching the RecipeMD types so they can be styled with CSS.
+// Numeric amounts are rounded to rounding decimal places (trailing zeros are
+// removed); pass a negative value to use full float64 precision.
+//
+// The Description and Instructions fields, which are stored as raw markdown
+// strings, are converted to HTML using the same markdown processor that was
+// configured on the [Parser]. Ingredient amounts are wrapped in <em> and
+// yields in <strong>, mirroring the emphasis encoding used in RecipeMD source.
+// All elements carry CSS class attributes with the prefix "recipemd-" for
+// styling.
+//
+// Ingredient groups are rendered as nested <div> blocks; the heading level
+// starts at h2 for top-level groups and increments for each sub-level.
+//
+// WARNING: This method is a work-in-progress and not yet ready for production
+// use. Known limitation: ingredient links reference raw .md file paths without
+// any resolution or conversion to HTML-friendly URLs.
 func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 	funcs := htmlFuncMap(p, rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
