@@ -1,6 +1,7 @@
 package recipemd
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ func TestGolden(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					recipe, parseErr := NewParser(suite.opts...).Parse(input)
+					recipe, parseErr := NewParser(suite.opts...).Parse(bytes.NewReader(input))
 
 					if isInvalid {
 						if parseErr == nil {

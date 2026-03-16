@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"testing"
@@ -15,7 +16,7 @@ func TestParseProducesValidJSON(t *testing.T) {
 	}
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(data)
+	r, err := p.Parse(bytes.NewReader(data))
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -36,7 +37,7 @@ func TestParseProducesValidJSON(t *testing.T) {
 
 func TestParseInvalidRecipeFails(t *testing.T) {
 	p := recipemd.NewParser()
-	_, err := p.Parse([]byte("no heading here"))
+	_, err := p.Parse(bytes.NewReader([]byte("no heading here")))
 	if err == nil {
 		t.Error("expected parse error for invalid recipe")
 	}

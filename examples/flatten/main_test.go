@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,7 @@ func TestFlattenInlinesLinksRecursively(t *testing.T) {
 	}
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(data)
+	r, err := p.Parse(bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +126,7 @@ func TestFlattenHTTPLinksPreserved(t *testing.T) {
 	}
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(input)
+	r, err := p.Parse(bytes.NewReader(input))
 	if err != nil {
 		t.Fatal(err)
 	}

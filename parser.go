@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -49,10 +50,12 @@ func NewParser(opts ...Option) (p *Parser) {
 // Parse converts a RecipeMD document into a Recipe struct via a single
 // goldmark parse and linear AST walk.
 // See: https://recipemd.org/specification.html#parsing-a-recipe
-//
-// All errors are collected and returned together via errors.Join.
-// Any error results in a nil *Recipe.
-func (p *Parser) Parse(source []byte) (*Recipe, error) {
+func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
+	source, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("io.ReadAll: %w", err)
+	}
+
 	if p.Frontmatter {
 		source = stripFrontmatter(source)
 	}

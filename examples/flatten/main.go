@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,14 +22,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	data, err := os.ReadFile(os.Args[1])
+	f, err := os.Open(os.Args[1])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	defer f.Close()
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(data)
+	r, err := p.Parse(f)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -104,7 +106,7 @@ func resolveLinkedRecipe(p *recipemd.Parser, link string, baseDir string, parent
 		return nil, fmt.Errorf("os.ReadFile: %w", err)
 	}
 
-	linked, err := p.Parse(data)
+	linked, err := p.Parse(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("Parse: %w", err)
 	}
