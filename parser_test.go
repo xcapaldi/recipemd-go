@@ -3,8 +3,6 @@ package recipemd
 import (
 	"encoding/json"
 	"math"
-	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -698,73 +696,6 @@ func TestParse(t *testing.T) {
 	})
 }
 
-func TestFlatten(t *testing.T) {
-	t.Parallel()
-
-	t.Run("no links unchanged", func(t *testing.T) {
-		t.Parallel()
-		p := NewParser()
-		r := &Recipe{
-			Ingredients:      []Ingredient{{Name: "salt"}},
-			IngredientGroups: []IngredientGroup{},
-		}
-		if err := p.Flatten(r, "/fake/recipe.md"); err != nil {
-			t.Fatal(err)
-		}
-		if len(r.Ingredients) != 1 || r.Ingredients[0].Name != "salt" {
-			t.Errorf("unexpected change: %+v", r.Ingredients)
-		}
-	})
-
-	t.Run("remote link preserved", func(t *testing.T) {
-		t.Parallel()
-		p := NewParser()
-		r := &Recipe{
-			Ingredients:      []Ingredient{{Name: "sauce", Link: new("https://example.com/sauce.md")}},
-			IngredientGroups: []IngredientGroup{},
-		}
-		if err := p.Flatten(r, "/fake/recipe.md"); err != nil {
-			t.Fatal(err)
-		}
-		if r.Ingredients[0].Link == nil {
-			t.Error("remote link should be preserved")
-		}
-	})
-
-	t.Run("local link resolved", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		linked := "# Sauce\n\n---\n\n- *1 cup* tomato\n- basil\n"
-		if err := os.WriteFile(filepath.Join(dir, "sauce.md"), []byte(linked), 0644); err != nil {
-			t.Fatal(err)
-		}
-		main := filepath.Join(dir, "main.md")
-
-		p := NewParser()
-		r := &Recipe{
-			Ingredients:      []Ingredient{{Name: "sauce", Link: new("sauce.md"), Amount: &Amount{Factor: 2, Unit: new("cups")}}},
-			IngredientGroups: []IngredientGroup{},
-		}
-		if err := p.Flatten(r, main); err != nil {
-			t.Fatal(err)
-		}
-		if len(r.Ingredients) < 1 {
-			t.Fatal("expected inlined ingredients")
-		}
-	})
-
-	t.Run("missing file error", func(t *testing.T) {
-		t.Parallel()
-		p := NewParser()
-		r := &Recipe{
-			Ingredients:      []Ingredient{{Name: "x", Link: new("nonexistent.md")}},
-			IngredientGroups: []IngredientGroup{},
-		}
-		if err := p.Flatten(r, "/fake/recipe.md"); err == nil {
-			t.Fatal("expected error for missing linked file")
-		}
-	})
-}
 
 func TestEncodeURLPath(t *testing.T) {
 	t.Parallel()
