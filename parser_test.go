@@ -1,6 +1,7 @@
 package recipemd
 
 import (
+	"bytes"
 	"encoding/json"
 	"math"
 	"testing"
@@ -17,7 +18,7 @@ title: ignored
 - avocado
 `)
 	p := NewParser(WithFrontmatter())
-	recipe, err := p.Parse(input)
+	recipe, err := p.Parse(bytes.NewReader(input))
 	if err != nil {
 		t.Fatalf("Parse error: %v", err)
 	}
@@ -37,7 +38,7 @@ title = "ignored"
 - avocado
 `)
 	p := NewParser(WithFrontmatter())
-	recipe, err := p.Parse(input)
+	recipe, err := p.Parse(bytes.NewReader(input))
 	if err != nil {
 		t.Fatalf("Parse error: %v", err)
 	}
@@ -56,7 +57,7 @@ title: ignored
 
 - avocado
 `)
-	_, err := NewParser().Parse(input)
+	_, err := NewParser().Parse(bytes.NewReader(input))
 	if err == nil {
 		t.Fatal("expected error parsing frontmatter without WithFrontmatter")
 	}
@@ -72,7 +73,7 @@ Check out https://example.com for more info.
 - avocado
 `)
 	p := NewParser(WithGithubFormattedMarkdown())
-	recipe, err := p.Parse(input)
+	recipe, err := p.Parse(bytes.NewReader(input))
 	if err != nil {
 		t.Fatalf("Parse error: %v", err)
 	}
@@ -84,7 +85,7 @@ Check out https://example.com for more info.
 func TestParser_GFM_LinkifyIngredient(t *testing.T) {
 	input := []byte("# Test\n\n---\n\n- *1 cup* https://example.com/flour\n")
 	p := NewParser(WithGithubFormattedMarkdown())
-	recipe, err := p.Parse(input)
+	recipe, err := p.Parse(bytes.NewReader(input))
 	if err != nil {
 		t.Fatalf("Parse error: %v", err)
 	}
@@ -134,7 +135,7 @@ It's delicious with chips.
 
 - avocado
 `)
-	recipe, err := NewParser().Parse(input)
+	recipe, err := NewParser().Parse(bytes.NewReader(input))
 	if err != nil {
 		t.Fatalf("Parse error: %v", err)
 	}
@@ -177,7 +178,7 @@ with salt, pepper and lemon juice.
 `)
 
 func TestParse_FullRecipe(t *testing.T) {
-	recipe, err := NewParser().Parse(sampleRecipe)
+	recipe, err := NewParser().Parse(bytes.NewReader(sampleRecipe))
 	if err != nil {
 		t.Fatalf("Parse error: %v", err)
 	}
@@ -389,7 +390,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("minimal recipe", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# Title\n\n---\n\n- salt\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# Title\n\n---\n\n- salt\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -409,7 +410,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("empty input", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewParser().Parse([]byte(""))
+		_, err := NewParser().Parse(bytes.NewReader([]byte("")))
 		if err == nil {
 			t.Fatal("expected error for empty input")
 		}
@@ -417,7 +418,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("no heading", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewParser().Parse([]byte("Not a heading\n\n---\n\n- x\n"))
+		_, err := NewParser().Parse(bytes.NewReader([]byte("Not a heading\n\n---\n\n- x\n")))
 		if err == nil {
 			t.Fatal("expected error for missing heading")
 		}
@@ -425,7 +426,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("wrong heading level", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewParser().Parse([]byte("## Level 2\n\n---\n\n- x\n"))
+		_, err := NewParser().Parse(bytes.NewReader([]byte("## Level 2\n\n---\n\n- x\n")))
 		if err == nil {
 			t.Fatal("expected error for level 2 heading")
 		}
@@ -433,7 +434,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("missing thematic break", func(t *testing.T) {
 		t.Parallel()
-		_, err := NewParser().Parse([]byte("# Title\n\n- x\n"))
+		_, err := NewParser().Parse(bytes.NewReader([]byte("# Title\n\n- x\n")))
 		if err == nil {
 			t.Fatal("expected error for missing thematic break")
 		}
@@ -441,7 +442,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("description", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# Title\n\nA description.\n\n---\n\n- x\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# Title\n\nA description.\n\n---\n\n- x\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -452,7 +453,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("tags", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# Title\n\n*sauce, vegan*\n\n---\n\n- x\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# Title\n\n*sauce, vegan*\n\n---\n\n- x\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -463,7 +464,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("yields", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# Title\n\n**4 servings**\n\n---\n\n- x\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# Title\n\n**4 servings**\n\n---\n\n- x\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -475,7 +476,7 @@ func TestParse(t *testing.T) {
 	t.Run("tags and yields", func(t *testing.T) {
 		t.Parallel()
 		input := "# Title\n\n*sauce*\n\n**4 servings**\n\n---\n\n- x\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -490,7 +491,7 @@ func TestParse(t *testing.T) {
 	t.Run("duplicate tags error", func(t *testing.T) {
 		t.Parallel()
 		input := "# Title\n\n*a*\n\n*b*\n\n---\n\n- x\n"
-		_, err := NewParser().Parse([]byte(input))
+		_, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err == nil {
 			t.Fatal("expected error for duplicate tags")
 		}
@@ -499,7 +500,7 @@ func TestParse(t *testing.T) {
 	t.Run("duplicate yields error", func(t *testing.T) {
 		t.Parallel()
 		input := "# Title\n\n**4 servings**\n\n**8 servings**\n\n---\n\n- x\n"
-		_, err := NewParser().Parse([]byte(input))
+		_, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err == nil {
 			t.Fatal("expected error for duplicate yields")
 		}
@@ -507,7 +508,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("ingredient with amount", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# T\n\n---\n\n- *2 cups* flour\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# T\n\n---\n\n- *2 cups* flour\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -522,7 +523,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("ingredient with link", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# T\n\n---\n\n- [flour](flour.md)\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# T\n\n---\n\n- [flour](flour.md)\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -537,7 +538,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("ingredient with amount and link", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# T\n\n---\n\n- *2 cups* [flour](flour.md)\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# T\n\n---\n\n- *2 cups* [flour](flour.md)\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -553,7 +554,7 @@ func TestParse(t *testing.T) {
 	t.Run("multiple ingredients", func(t *testing.T) {
 		t.Parallel()
 		input := "# T\n\n---\n\n- *1* a\n- *2* b\n- c\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -565,7 +566,7 @@ func TestParse(t *testing.T) {
 	t.Run("ingredient groups", func(t *testing.T) {
 		t.Parallel()
 		input := "# T\n\n---\n\n- base\n\n## Sauce\n\n- tomato\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -587,7 +588,7 @@ func TestParse(t *testing.T) {
 	t.Run("nested ingredient groups", func(t *testing.T) {
 		t.Parallel()
 		input := "# T\n\n---\n\n## Dough\n\n- flour\n\n### Filling\n\n- cheese\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -606,7 +607,7 @@ func TestParse(t *testing.T) {
 	t.Run("instructions", func(t *testing.T) {
 		t.Parallel()
 		input := "# T\n\n---\n\n- x\n\n---\n\nDo the thing.\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -617,7 +618,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("no instructions", func(t *testing.T) {
 		t.Parallel()
-		r, err := NewParser().Parse([]byte("# T\n\n---\n\n- x\n"))
+		r, err := NewParser().Parse(bytes.NewReader([]byte("# T\n\n---\n\n- x\n")))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -629,7 +630,7 @@ func TestParse(t *testing.T) {
 	t.Run("description with tags and yields excluded", func(t *testing.T) {
 		t.Parallel()
 		input := "# Title\n\nHello world.\n\n*vegan*\n\n**4 servings**\n\n---\n\n- x\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -644,7 +645,7 @@ func TestParse(t *testing.T) {
 	t.Run("paragraph in ingredients errors", func(t *testing.T) {
 		t.Parallel()
 		input := "# T\n\n---\n\nNot a list\n"
-		_, err := NewParser().Parse([]byte(input))
+		_, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err == nil {
 			t.Fatal("expected error for paragraph in ingredients")
 		}
@@ -653,7 +654,7 @@ func TestParse(t *testing.T) {
 	t.Run("setext heading title", func(t *testing.T) {
 		t.Parallel()
 		input := "Title\n=====\n\n---\n\n- x\n"
-		r, err := NewParser().Parse([]byte(input))
+		r, err := NewParser().Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -665,7 +666,7 @@ func TestParse(t *testing.T) {
 	t.Run("frontmatter stripped", func(t *testing.T) {
 		t.Parallel()
 		input := "---\ntitle: meta\n---\n# Real Title\n\n---\n\n- x\n"
-		r, err := NewParser(WithFrontmatter()).Parse([]byte(input))
+		r, err := NewParser(WithFrontmatter()).Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}
@@ -677,7 +678,7 @@ func TestParse(t *testing.T) {
 	t.Run("GFM task list with amounts", func(t *testing.T) {
 		t.Parallel()
 		input := "# T\n\n---\n\n- [ ] *1 cup* flour\n- [x] *2 cups* sugar\n"
-		r, err := NewParser(WithGithubFormattedMarkdown()).Parse([]byte(input))
+		r, err := NewParser(WithGithubFormattedMarkdown()).Parse(bytes.NewReader([]byte(input)))
 		if err != nil {
 			t.Fatalf("Parse error: %v", err)
 		}

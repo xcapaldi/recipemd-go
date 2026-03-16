@@ -22,14 +22,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	data, err := os.ReadFile(os.Args[1])
+	f, err := os.Open(os.Args[1])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	defer f.Close()
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(data)
+	r, err := p.Parse(f)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

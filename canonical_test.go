@@ -1,6 +1,7 @@
 package recipemd
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func TestCanonical(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			recipe, parseErr := NewParser().Parse(input)
+			recipe, parseErr := NewParser().Parse(bytes.NewReader(input))
 
 			if isInvalid {
 				if parseErr == nil {

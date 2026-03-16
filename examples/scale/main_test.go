@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -15,7 +16,7 @@ func TestScaleByFactor(t *testing.T) {
 	}
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(data)
+	r, err := p.Parse(bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +36,7 @@ func TestScaleForYield(t *testing.T) {
 	}
 
 	p := recipemd.NewParser()
-	r, err := p.Parse(data)
+	r, err := p.Parse(bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
