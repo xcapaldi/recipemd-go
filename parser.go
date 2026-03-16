@@ -2,10 +2,9 @@ package recipemd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode"
@@ -47,125 +46,12 @@ func NewParser(opts ...Option) (p *Parser) {
 	return
 }
 
-// Flatten resolves linked ingredients by parsing referenced recipe files
-// and inlining their ingredients. Links resolved relative to recipeFile dir.
-func (p *Parser) Flatten(r *Recipe, recipeFile string) error {
-	baseDir := filepath.Dir(recipeFile)
-	ingredients, err := p.flattenIngredients(r.Ingredients, baseDir)
-	if err != nil {
-		return fmt.Errorf("flattenIngredients: %w", err)
-	}
-	r.Ingredients = ingredients
-	groups, err := p.flattenIngredientGroups(r.IngredientGroups, baseDir)
-	if err != nil {
-		return fmt.Errorf("flattenIngredientGroups: %w", err)
-	}
-	r.IngredientGroups = groups
-	return nil
-}
-
-func (p *Parser) flattenIngredients(ingredients []Ingredient, baseDir string) ([]Ingredient, error) {
-	result := make([]Ingredient, 0, len(ingredients))
-	for _, ing := range ingredients {
-		if ing.Link != nil {
-			resolved, err := p.resolveLinkedRecipe(*ing.Link, baseDir, &ing)
-			if err != nil {
-				return nil, fmt.Errorf("resolveLinkedRecipe: %w", err)
-			}
-			result = append(result, resolved...)
-		} else {
-			result = append(result, ing)
-		}
-	}
-	return result, nil
-}
-
-func (p *Parser) flattenIngredientGroups(groups []IngredientGroup, baseDir string) ([]IngredientGroup, error) {
-	result := make([]IngredientGroup, 0, len(groups))
-	for _, g := range groups {
-		ingredients, err := p.flattenIngredients(g.Ingredients, baseDir)
-		if err != nil {
-			return nil, fmt.Errorf("flattenIngredients: %w", err)
-		}
-		groups, err := p.flattenIngredientGroups(g.IngredientGroups, baseDir)
-		if err != nil {
-			return nil, fmt.Errorf("flattenIngredientGroups: %w", err)
-		}
-		result = append(result, IngredientGroup{
-			Title:            g.Title,
-			Ingredients:      ingredients,
-			IngredientGroups: groups,
-		})
-	}
-	return result, nil
-}
-
-func (p *Parser) resolveLinkedRecipe(link string, baseDir string, parent *Ingredient) ([]Ingredient, error) {
-	if strings.Contains(link, "://") {
-		return []Ingredient{*parent}, nil
-	}
-
-	path := filepath.Join(baseDir, link)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("os.ReadFile: %w", err)
-	}
-
-	linked, err := p.Parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("Parse: %w", err)
-	}
-
-	if parent.Amount != nil && len(linked.Yields) > 0 {
-		if err := linked.ScaleForYield(*parent.Amount); err != nil {
-			return nil, fmt.Errorf("linked.ScaleForYield: %w", err)
-		}
-	}
-
-	linkedDir := filepath.Dir(path)
-	flatIngredients, err := p.flattenIngredients(linked.Ingredients, linkedDir)
-	if err != nil {
-		return nil, fmt.Errorf("flattenIngredients: %w", err)
-	}
-	for _, g := range linked.IngredientGroups {
-		ingredients, err := p.flattenIngredients(g.Ingredients, linkedDir)
-		if err != nil {
-			return nil, fmt.Errorf("flattenIngredients: %w", err)
-		}
-		flatIngredients = append(flatIngredients, ingredients...)
-		groupIngredients, err := p.flattenGroupIngredients(g.IngredientGroups, linkedDir)
-		if err != nil {
-			return nil, fmt.Errorf("flattenGroupIngredients: %w", err)
-		}
-		flatIngredients = append(flatIngredients, groupIngredients...)
-	}
-
-	if len(flatIngredients) == 0 {
-		return []Ingredient{*parent}, nil
-	}
-	return flatIngredients, nil
-}
-
-func (p *Parser) flattenGroupIngredients(groups []IngredientGroup, baseDir string) ([]Ingredient, error) {
-	result := make([]Ingredient, 0, len(groups))
-	for _, g := range groups {
-		ingredients, err := p.flattenIngredients(g.Ingredients, baseDir)
-		if err != nil {
-			return nil, fmt.Errorf("flattenIngredients: %w", err)
-		}
-		result = append(result, ingredients...)
-		groupIngredients, err := p.flattenGroupIngredients(g.IngredientGroups, baseDir)
-		if err != nil {
-			return nil, fmt.Errorf("flattenGroupIngredients: %w", err)
-		}
-		result = append(result, groupIngredients...)
-	}
-	return result, nil
-}
-
 // Parse converts a RecipeMD document into a Recipe struct via a single
 // goldmark parse and linear AST walk.
 // See: https://recipemd.org/specification.html#parsing-a-recipe
+//
+// All errors are collected and returned together via errors.Join.
+// Any error results in a nil *Recipe.
 func (p *Parser) Parse(source []byte) (*Recipe, error) {
 	if p.Frontmatter {
 		source = stripFrontmatter(source)
@@ -180,22 +66,24 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 		IngredientGroups: []IngredientGroup{},
 	}
 
+	var errs error
+
 	c := document.FirstChild()
 	if c == nil {
-		return nil, fmt.Errorf("recipe must have a title")
+		return nil, newParseError(source, 0, "recipe must have a title")
 	}
 
 	// --- Preamble: title ---
 	h, ok := c.(*ast.Heading)
 	if !ok {
-		return nil, fmt.Errorf("expected level 1 heading, got %T", c)
+		return nil, newParseError(source, nodeStartOffset(c), fmt.Sprintf("expected level 1 heading, got %T", c))
 	}
 	if h.Level != 1 {
-		return nil, fmt.Errorf("expected level 1 heading, got level %d", h.Level)
+		errs = errors.Join(errs, newParseError(source, nodeStartOffset(h), fmt.Sprintf("expected level 1 heading, got level %d", h.Level)))
 	}
 	title, err := extractPlainText(h, source)
 	if err != nil {
-		return nil, fmt.Errorf("extractPlainText: %w", err)
+		return nil, newParseError(source, nodeStartOffset(h), err.Error())
 	}
 	recipe.Title = title
 
@@ -209,15 +97,17 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 
 	lastPreBreakEnd := descStart
 	for c != nil && c.Kind() != ast.KindThematicBreak {
-		p, isPara := c.(*ast.Paragraph)
+		para, isPara := c.(*ast.Paragraph)
 		if isPara {
-			if em, ok := isOnlyEmphasis(p, italic); ok {
+			if em, ok := isOnlyEmphasis(para, italic); ok {
 				if tagsFound {
-					return nil, fmt.Errorf("tags already set")
+					errs = errors.Join(errs, newParseError(source, nodeStartOffset(c), "tags already set"))
+					c = c.NextSibling()
+					continue
 				}
 				tagsText, err := extractPlainText(em, source)
 				if err != nil {
-					return nil, fmt.Errorf("extractPlainText: %w", err)
+					return nil, newParseError(source, nodeStartOffset(c), err.Error())
 				}
 				recipe.Tags = parseTags(tagsText)
 				tagsFound = true
@@ -228,17 +118,19 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 				c = c.NextSibling()
 				continue
 			}
-			if em, ok := isOnlyEmphasis(p, bold); ok {
+			if em, ok := isOnlyEmphasis(para, bold); ok {
 				if yieldsFound {
-					return nil, fmt.Errorf("yields already set")
+					errs = errors.Join(errs,newParseError(source, nodeStartOffset(c), "yields already set"))
+					c = c.NextSibling()
+					continue
 				}
 				yieldsText, err := extractPlainText(em, source)
 				if err != nil {
-					return nil, fmt.Errorf("extractPlainText: %w", err)
+					return nil, newParseError(source, nodeStartOffset(c), err.Error())
 				}
-				yields, err := parseYields(yieldsText)
-				if err != nil {
-					return nil, fmt.Errorf("parseYields: %w", err)
+				yields, yieldErrs := parseYields(yieldsText)
+				if yieldErrs != nil {
+					errs = errors.Join(errs, newParseError(source, nodeStartOffset(c), yieldErrs.Error()))
 				}
 				recipe.Yields = yields
 				yieldsFound = true
@@ -250,7 +142,9 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 				continue
 			}
 			if tagsYieldsMode {
-				return nil, fmt.Errorf("unexpected content in tags/yields section")
+				errs = errors.Join(errs,newParseError(source, nodeStartOffset(c), "unexpected content in tags/yields section"))
+				c = c.NextSibling()
+				continue
 			}
 		}
 		if _, end := getRecursiveSourceBounds(c, source); end > lastPreBreakEnd {
@@ -261,7 +155,7 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 
 	// --- First thematic break ---
 	if c == nil || c.Kind() != ast.KindThematicBreak {
-		return nil, fmt.Errorf("missing thematic break divider")
+		return nil, newParseError(source, lastPreBreakEnd, "missing thematic break divider")
 	}
 	firstBreakPos := findDashLine(source, lastPreBreakEnd)
 
@@ -277,17 +171,18 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 	c = c.NextSibling()
 
 	// --- Ingredients ---
-	if _, ok := c.(*ast.Paragraph); ok {
-		return nil, fmt.Errorf("paragraph not valid in ingredients section")
+	for c != nil {
+		if para, ok := c.(*ast.Paragraph); ok {
+			errs = errors.Join(errs,newParseError(source, nodeStartOffset(para), "paragraph not valid in ingredients section"))
+			c = c.NextSibling()
+			continue
+		}
+		break
 	}
-	c, err = parseIngredientList(c, source, &recipe.Ingredients, p.hasTaskList)
-	if err != nil {
-		return nil, err
-	}
-	c, err = parseIngredientGroup(c, source, &recipe.IngredientGroups, 0, p.hasTaskList)
-	if err != nil {
-		return nil, err
-	}
+	var listErrs, groupErrs error
+	c, listErrs = parseIngredientList(c, source, &recipe.Ingredients, p.hasTaskList)
+	c, groupErrs = parseIngredientGroup(c, source, &recipe.IngredientGroups, 0, p.hasTaskList)
+	errs = errors.Join(errs, listErrs, groupErrs)
 
 	// --- Second thematic break (optional) → instructions ---
 	if c != nil && c.Kind() == ast.KindThematicBreak {
@@ -299,6 +194,9 @@ func (p *Parser) Parse(source []byte) (*Recipe, error) {
 		}
 	}
 
+	if errs != nil {
+		return nil, errs
+	}
 	return recipe, nil
 }
 
@@ -354,18 +252,19 @@ func parseIngredientGroup(
 	parentLevel int,
 	skipCheckbox bool,
 ) (ast.Node, error) {
+	var errs error
 	for {
 		h, ok := c.(*ast.Heading)
 		if !ok {
-			return c, nil
+			return c, errs
 		}
 		l := h.Level
 		if l <= parentLevel {
-			return c, nil
+			return c, errs
 		}
 		title, err := extractPlainText(h, source)
 		if err != nil {
-			return nil, fmt.Errorf("extractPlainText: %w", err)
+			return nil, errors.Join(errs, newParseError(source, nodeStartOffset(h), err.Error()))
 		}
 		g := IngredientGroup{
 			Title:            title,
@@ -373,19 +272,16 @@ func parseIngredientGroup(
 			IngredientGroups: []IngredientGroup{},
 		}
 		c = c.NextSibling()
-		if c == nil {
-			*groups = append(*groups, g)
-			return nil, nil
+		var listErrs, groupErrs error
+		if c != nil {
+			c, listErrs = parseIngredientList(c, source, &g.Ingredients, skipCheckbox)
+			c, groupErrs = parseIngredientGroup(c, source, &g.IngredientGroups, l, skipCheckbox)
 		}
-		c, err = parseIngredientList(c, source, &g.Ingredients, skipCheckbox)
-		if err != nil {
-			return nil, err
-		}
-		c, err = parseIngredientGroup(c, source, &g.IngredientGroups, l, skipCheckbox)
-		if err != nil {
-			return nil, err
-		}
+		errs = errors.Join(errs, listErrs, groupErrs)
 		*groups = append(*groups, g)
+		if c == nil {
+			return nil, errs
+		}
 	}
 }
 
@@ -399,11 +295,12 @@ func parseIngredientList(
 	ingredients *[]Ingredient,
 	skipCheckbox bool,
 ) (ast.Node, error) {
+	var errs error
 	for {
 		// 1. Examine c
 		list, ok := c.(*ast.List)
 		if !ok {
-			return c, nil
+			return c, errs
 		}
 		// Enter c
 		c = list.FirstChild()
@@ -416,14 +313,17 @@ func parseIngredientList(
 		for {
 			ing, err := parseIngredient(c, source, skipCheckbox)
 			if err != nil {
-				return nil, fmt.Errorf("parseIngredient: %w", err)
+				offset, _ := getRecursiveSourceBounds(c, source)
+				if offset < 0 {
+					offset = 0
+				}
+				errs = errors.Join(errs, newParseError(source, offset, err.Error()))
+			} else {
+				*ingredients = append(*ingredients, ing)
 			}
-			*ingredients = append(*ingredients, ing)
-			// Go to next item
 			if c.NextSibling() != nil {
 				c = c.NextSibling()
 			} else {
-				// Leave c and go to 1
 				c = list.NextSibling()
 				break
 			}
@@ -975,6 +875,36 @@ func getRecursiveSourceBounds(node ast.Node, source []byte) (start, end int) {
 	return start, end
 }
 
+// offsetToLineCol converts a 0-based byte offset into 1-based line and column numbers.
+func offsetToLineCol(source []byte, offset int) (line, col int) {
+	line, col = 1, 1
+	for i := 0; i < offset && i < len(source); i++ {
+		if source[i] == '\n' {
+			line++
+			col = 1
+		} else {
+			col++
+		}
+	}
+	return
+}
+
+// newParseError constructs a *ParseError from a byte offset in source and a message.
+func newParseError(source []byte, offset int, msg string) *ParseError {
+	line, col := offsetToLineCol(source, offset)
+	return &ParseError{Message: msg, Offset: offset, Line: line, Column: col}
+}
+
+// nodeStartOffset returns the 0-based byte offset of the first byte of an AST node.
+// Returns 0 if the node has no line info.
+func nodeStartOffset(n ast.Node) int {
+	lines := n.Lines()
+	if lines.Len() > 0 {
+		return lines.At(0).Start
+	}
+	return 0
+}
+
 type emphasisLevel int
 
 const (
@@ -1029,15 +959,16 @@ func parseTags(s string) []string {
 	return splitList(s)
 }
 
-func parseYields(s string) (yields []Amount, err error) {
+func parseYields(s string) (yields []Amount, errs error) {
 	for _, yield := range splitList(s) {
 		amount, err := parseAmount(yield)
 		if err != nil {
-			return nil, fmt.Errorf("parseAmount: %w", err)
+			errs = errors.Join(errs, err)
+			continue
 		}
 		yields = append(yields, amount)
 	}
-	return yields, nil
+	return yields, errs
 }
 
 var vulgarFractionMap = map[rune]float64{
