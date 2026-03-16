@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+echo "--- gofmt"
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+    echo "gofmt: the following files need formatting:"
+    echo "$unformatted"
+    exit 1
+fi
+
+echo "--- go vet"
+go vet ./...
+
+echo "--- go test"
+go test ./...

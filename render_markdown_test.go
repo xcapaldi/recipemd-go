@@ -38,7 +38,7 @@ func TestRenderMarkdown(t *testing.T) {
 			Title:       "Guac",
 			Description: &desc,
 			Tags:        []string{"sauce", "vegan"},
-			Yields:      []Amount{{Factor: 4, Unit: new("servings")}},
+			Yields:      []Amount{{Factor: 4, Unit: ptr("servings")}},
 			Ingredients: []Ingredient{
 				{Name: "avocado", Amount: &Amount{Factor: 1, Unit: nil}},
 				{Name: "salt"},
@@ -85,7 +85,7 @@ func TestRenderMarkdown(t *testing.T) {
 			Title:            "T",
 			Yields:           []Amount{},
 			Tags:             []string{},
-			Ingredients:      []Ingredient{{Name: "sauce", Link: new("sauce.md")}},
+			Ingredients:      []Ingredient{{Name: "sauce", Link: ptr("sauce.md")}},
 			IngredientGroups: []IngredientGroup{},
 		}
 		got := p.RenderMarkdown(r, 3)
