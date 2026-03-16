@@ -27,8 +27,8 @@ func TestFlattenInlinesLinksRecursively(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := p.Flatten(r, recipeFile); err != nil {
-		t.Fatalf("Flatten: %v", err)
+	if err := flatten(p, r, recipeFile); err != nil {
+		t.Fatalf("flatten: %v", err)
 	}
 
 	want := []string{"pasta", "olive oil", "water", "bouillon cube"}
@@ -44,6 +44,74 @@ func TestFlattenInlinesLinksRecursively(t *testing.T) {
 			t.Errorf("ingredient[%d] = %q, want %q", i, got[i], want[i])
 		}
 	}
+}
+
+func TestFlatten(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no links unchanged", func(t *testing.T) {
+		t.Parallel()
+		p := recipemd.NewParser()
+		r := &recipemd.Recipe{
+			Ingredients:      []recipemd.Ingredient{{Name: "salt"}},
+			IngredientGroups: []recipemd.IngredientGroup{},
+		}
+		if err := flatten(p, r, "/fake/recipe.md"); err != nil {
+			t.Fatal(err)
+		}
+		if len(r.Ingredients) != 1 || r.Ingredients[0].Name != "salt" {
+			t.Errorf("unexpected change: %+v", r.Ingredients)
+		}
+	})
+
+	t.Run("remote link preserved", func(t *testing.T) {
+		t.Parallel()
+		p := recipemd.NewParser()
+		r := &recipemd.Recipe{
+			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: new("https://example.com/sauce.md")}},
+			IngredientGroups: []recipemd.IngredientGroup{},
+		}
+		if err := flatten(p, r, "/fake/recipe.md"); err != nil {
+			t.Fatal(err)
+		}
+		if r.Ingredients[0].Link == nil {
+			t.Error("remote link should be preserved")
+		}
+	})
+
+	t.Run("local link resolved", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		linked := "# Sauce\n\n---\n\n- *1 cup* tomato\n- basil\n"
+		if err := os.WriteFile(filepath.Join(dir, "sauce.md"), []byte(linked), 0644); err != nil {
+			t.Fatal(err)
+		}
+		main := filepath.Join(dir, "main.md")
+
+		p := recipemd.NewParser()
+		r := &recipemd.Recipe{
+			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: new("sauce.md"), Amount: &recipemd.Amount{Factor: 2, Unit: new("cups")}}},
+			IngredientGroups: []recipemd.IngredientGroup{},
+		}
+		if err := flatten(p, r, main); err != nil {
+			t.Fatal(err)
+		}
+		if len(r.Ingredients) < 1 {
+			t.Fatal("expected inlined ingredients")
+		}
+	})
+
+	t.Run("missing file error", func(t *testing.T) {
+		t.Parallel()
+		p := recipemd.NewParser()
+		r := &recipemd.Recipe{
+			Ingredients:      []recipemd.Ingredient{{Name: "x", Link: new("nonexistent.md")}},
+			IngredientGroups: []recipemd.IngredientGroup{},
+		}
+		if err := flatten(p, r, "/fake/recipe.md"); err == nil {
+			t.Fatal("expected error for missing linked file")
+		}
+	})
 }
 
 // TestFlattenHTTPLinksPreserved verifies that HTTP(S) links are left as-is.
@@ -62,8 +130,8 @@ func TestFlattenHTTPLinksPreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := p.Flatten(r, recipeFile); err != nil {
-		t.Fatalf("Flatten: %v", err)
+	if err := flatten(p, r, recipeFile); err != nil {
+		t.Fatalf("flatten: %v", err)
 	}
 
 	if len(r.Ingredients) != 1 {
