@@ -174,7 +174,7 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 			}
 			if em, ok := isOnlyEmphasis(para, bold); ok {
 				if yieldsFound {
-					errs = errors.Join(errs,newParseError(source, nodeStartOffset(c), "yields already set"))
+					errs = errors.Join(errs, newParseError(source, nodeStartOffset(c), "yields already set"))
 					c = c.NextSibling()
 					continue
 				}
@@ -196,7 +196,7 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 				continue
 			}
 			if tagsYieldsMode {
-				errs = errors.Join(errs,newParseError(source, nodeStartOffset(c), "unexpected content in tags/yields section"))
+				errs = errors.Join(errs, newParseError(source, nodeStartOffset(c), "unexpected content in tags/yields section"))
 				c = c.NextSibling()
 				continue
 			}
@@ -227,7 +227,7 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 	// --- Ingredients ---
 	for c != nil {
 		if para, ok := c.(*ast.Paragraph); ok {
-			errs = errors.Join(errs,newParseError(source, nodeStartOffset(para), "paragraph not valid in ingredients section"))
+			errs = errors.Join(errs, newParseError(source, nodeStartOffset(para), "paragraph not valid in ingredients section"))
 			c = c.NextSibling()
 			continue
 		}
@@ -475,9 +475,9 @@ func parseIngredient(c ast.Node, source []byte, skipCheckbox bool) (Ingredient, 
 
 	// 8. Let i be an ingredient with amount a, name n, link l
 	n = strings.TrimSpace(n)
-  if n == "" {
-    return Ingredient{}, fmt.Errorf("ingredient must have a name")
-  }
+	if n == "" {
+		return Ingredient{}, fmt.Errorf("ingredient must have a name")
+	}
 
 	return Ingredient{Amount: a, Name: n, Link: l}, nil
 }

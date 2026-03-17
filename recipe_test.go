@@ -90,8 +90,8 @@ func TestIngredient_Serialize(t *testing.T) {
 		want string
 	}{
 		{"name only", Ingredient{Name: "salt"}, "salt"},
-		{"with amount", Ingredient{Name: "flour", Amount: &Amount{Factor:2, Unit: new("cups")}}, "2 cups flour"},
-		{"amount no unit", Ingredient{Name: "eggs", Amount: &Amount{Factor:3, Unit: nil}}, "3 eggs"},
+		{"with amount", Ingredient{Name: "flour", Amount: &Amount{Factor: 2, Unit: new("cups")}}, "2 cups flour"},
+		{"amount no unit", Ingredient{Name: "eggs", Amount: &Amount{Factor: 3, Unit: nil}}, "3 eggs"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestIngredient_Scale(t *testing.T) {
 	t.Parallel()
 	t.Run("with amount", func(t *testing.T) {
 		t.Parallel()
-		i := Ingredient{Name: "flour", Amount: &Amount{Factor:2, Unit: new("cups")}}
+		i := Ingredient{Name: "flour", Amount: &Amount{Factor: 2, Unit: new("cups")}}
 		i.Scale(0.5)
 		if i.Amount.Factor != 1 {
 			t.Errorf("Factor = %v, want 1", i.Amount.Factor)
@@ -138,13 +138,13 @@ func TestIngredientGroup_Scale(t *testing.T) {
 	g := IngredientGroup{
 		Title: "Sauce",
 		Ingredients: []Ingredient{
-			{Name: "tomato", Amount: &Amount{Factor:2, Unit: new("cups")}},
+			{Name: "tomato", Amount: &Amount{Factor: 2, Unit: new("cups")}},
 			{Name: "basil"},
 		},
 		IngredientGroups: []IngredientGroup{
 			{
 				Title:       "Spices",
-				Ingredients: []Ingredient{{Name: "pepper", Amount: &Amount{Factor:1, Unit: new("tsp")}}},
+				Ingredients: []Ingredient{{Name: "pepper", Amount: &Amount{Factor: 1, Unit: new("tsp")}}},
 			},
 		},
 	}
@@ -164,12 +164,12 @@ func TestRecipe_Scale(t *testing.T) {
 			{Factor: 4, Unit: new("servings")},
 		},
 		Ingredients: []Ingredient{
-			{Name: "flour", Amount: &Amount{Factor:2, Unit: new("cups")}},
+			{Name: "flour", Amount: &Amount{Factor: 2, Unit: new("cups")}},
 		},
 		IngredientGroups: []IngredientGroup{
 			{
 				Title:       "Sauce",
-				Ingredients: []Ingredient{{Name: "tomato", Amount: &Amount{Factor:1, Unit: nil}}},
+				Ingredients: []Ingredient{{Name: "tomato", Amount: &Amount{Factor: 1, Unit: nil}}},
 			},
 		},
 	}
@@ -224,7 +224,7 @@ func TestRecipe_ScaleForYield(t *testing.T) {
 			t.Parallel()
 			r := &Recipe{
 				Yields:      tt.yields,
-				Ingredients: []Ingredient{{Name: "x", Amount: &Amount{Factor:2, Unit: nil}}},
+				Ingredients: []Ingredient{{Name: "x", Amount: &Amount{Factor: 2, Unit: nil}}},
 			}
 			err := r.ScaleForYield(tt.desired)
 			if tt.wantErr {

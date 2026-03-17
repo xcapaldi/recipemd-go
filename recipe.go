@@ -132,61 +132,61 @@ func (a Amount) FormatFactor(rounding int) string {
 // ScaleForYield returns an error when desiredYield has a unit that does not
 // match any yield in the recipe.
 func (r *Recipe) ScaleForYield(desiredYield Amount) error {
-  for _, y := range r.Yields {
-    if y.Unit == nil && desiredYield.Unit == nil {
-      r.Scale(desiredYield.Factor/y.Factor)
-      return nil
-    }
-    if y.Unit != nil && desiredYield.Unit != nil && *y.Unit == *desiredYield.Unit {
-      r.Scale(desiredYield.Factor/y.Factor)
-      return nil
-    }
-  }
+	for _, y := range r.Yields {
+		if y.Unit == nil && desiredYield.Unit == nil {
+			r.Scale(desiredYield.Factor / y.Factor)
+			return nil
+		}
+		if y.Unit != nil && desiredYield.Unit != nil && *y.Unit == *desiredYield.Unit {
+			r.Scale(desiredYield.Factor / y.Factor)
+			return nil
+		}
+	}
 
-  // fallback on scaling the whole recipe
-  if desiredYield.Unit == nil {
-    r.Scale(desiredYield.Factor)
-    return nil
-  }
+	// fallback on scaling the whole recipe
+	if desiredYield.Unit == nil {
+		r.Scale(desiredYield.Factor)
+		return nil
+	}
 
-  return errors.New("no matching yield unit found")
+	return errors.New("no matching yield unit found")
 }
 
 // Scale multiplies every ingredient amount and every yield in the recipe by
 // factor. The recipe title, description, tags, and instructions are unchanged.
 func (r *Recipe) Scale(factor float64) {
-  for i := range(r.Yields) {
-    r.Yields[i].Scale(factor)
-  }
-  for j := range(r.Ingredients) {
-    r.Ingredients[j].Scale(factor)
-  }
-  for k := range(r.IngredientGroups) {
-    r.IngredientGroups[k].Scale(factor)
-  }
+	for i := range r.Yields {
+		r.Yields[i].Scale(factor)
+	}
+	for j := range r.Ingredients {
+		r.Ingredients[j].Scale(factor)
+	}
+	for k := range r.IngredientGroups {
+		r.IngredientGroups[k].Scale(factor)
+	}
 }
 
 // Scale multiplies the amount's factor by factor.
 func (a *Amount) Scale(factor float64) {
-  a.Factor *= factor
+	a.Factor *= factor
 }
 
 // Scale scales the ingredient's amount by factor. It is a no-op when the
 // ingredient has no amount.
 func (i *Ingredient) Scale(factor float64) {
-  if i.Amount != nil {
-    i.Amount.Scale(factor)
-  }
+	if i.Amount != nil {
+		i.Amount.Scale(factor)
+	}
 }
 
 // Scale recursively scales all ingredients and nested sub-groups by factor.
 func (g *IngredientGroup) Scale(factor float64) {
-  for i := range(g.Ingredients) {
-    g.Ingredients[i].Scale(factor)
-  }
-  for j := range(g.IngredientGroups) {
-    g.IngredientGroups[j].Scale(factor)
-  }
+	for i := range g.Ingredients {
+		g.Ingredients[i].Scale(factor)
+	}
+	for j := range g.IngredientGroups {
+		g.IngredientGroups[j].Scale(factor)
+	}
 }
 
 // Serialize formats the amount as a human-readable string.
@@ -237,5 +237,3 @@ func (g *IngredientGroup) LeafIngredients() []Ingredient {
 	}
 	return result
 }
-
-
