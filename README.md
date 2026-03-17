@@ -1,9 +1,7 @@
 # recipemd-go
 
-<p>
-  <a href="https://github.com/xcapaldi/recipemd-go/releases"><img src="https://img.shields.io/github/release/xcapaldi/recipemd-go.svg" alt="Latest Release"></a>
-  <a href="https://pkg.go.dev/xcapaldi/recipemd-go?tab=doc"><img src="https://godoc.org/xcapaldi/recipemd-go?status.svg" alt="GoDoc"></a>
-</p>
+[![Go Reference](https://pkg.go.dev/badge/github.com/xcapaldi/recipemd-go.svg)](https://pkg.go.dev/github.com/xcapaldi/recipemd-go)
+![GitHub Release](https://img.shields.io/github/v/release/xcapaldi/recipemd-go)
 
 A Go library for parsing, scaling, and rendering recipes in the [RecipeMD](https://recipemd.org) format.
 This format builds on top of structured Markdown such that both humans and programs can digest it.
