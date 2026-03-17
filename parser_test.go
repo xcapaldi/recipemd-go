@@ -697,7 +697,6 @@ func TestParse(t *testing.T) {
 	})
 }
 
-
 func TestEncodeURLPath(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -795,4 +794,3 @@ func TestSkipLine(t *testing.T) {
 		})
 	}
 }
-
