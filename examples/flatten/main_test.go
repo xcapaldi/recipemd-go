@@ -10,8 +10,6 @@ import (
 	"github.com/xcapaldi/recipemd-go/examples/helper"
 )
 
-func ptr[T any](v T) *T { return &v }
-
 // TestFlattenInlinesLinksRecursively verifies that linked ingredients are
 // resolved relative to each file, not the working directory, and that chains
 // of links (main -> sauce -> subdir/stock) are fully inlined.
@@ -72,7 +70,7 @@ func TestFlatten(t *testing.T) {
 		t.Parallel()
 		p := recipemd.NewParser()
 		r := &recipemd.Recipe{
-			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: ptr("https://example.com/sauce.md")}},
+			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: new("https://example.com/sauce.md")}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
 		if err := helper.Flatten(p, r, "/fake/recipe.md"); err != nil {
@@ -94,7 +92,7 @@ func TestFlatten(t *testing.T) {
 
 		p := recipemd.NewParser()
 		r := &recipemd.Recipe{
-			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: ptr("sauce.md"), Amount: &recipemd.Amount{Factor: 2, Unit: ptr("cups")}}},
+			Ingredients:      []recipemd.Ingredient{{Name: "sauce", Link: new("sauce.md"), Amount: &recipemd.Amount{Factor: 2, Unit: new("cups")}}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
 		if err := helper.Flatten(p, r, main); err != nil {
@@ -109,7 +107,7 @@ func TestFlatten(t *testing.T) {
 		t.Parallel()
 		p := recipemd.NewParser()
 		r := &recipemd.Recipe{
-			Ingredients:      []recipemd.Ingredient{{Name: "x", Link: ptr("nonexistent.md")}},
+			Ingredients:      []recipemd.Ingredient{{Name: "x", Link: new("nonexistent.md")}},
 			IngredientGroups: []recipemd.IngredientGroup{},
 		}
 		if err := helper.Flatten(p, r, "/fake/recipe.md"); err == nil {

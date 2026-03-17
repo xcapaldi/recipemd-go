@@ -10,7 +10,7 @@ func TestRenderJSON(t *testing.T) {
 	p := NewParser()
 	r := &Recipe{
 		Title:            "Test",
-		Yields:           []Amount{{Factor: 4, Unit: ptr("servings")}},
+		Yields:           []Amount{{Factor: 4, Unit: new("servings")}},
 		Tags:             []string{"easy"},
 		Ingredients:      []Ingredient{{Name: "salt"}},
 		IngredientGroups: []IngredientGroup{},

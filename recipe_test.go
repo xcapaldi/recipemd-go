@@ -14,7 +14,7 @@ func TestAmount_MarshalJSON(t *testing.T) {
 	}{
 		{"integer no unit", Amount{Factor: 3, Unit: nil}, `{"factor":"3","unit":null}`},
 		{"decimal no unit", Amount{Factor: 1.5, Unit: nil}, `{"factor":"1.5","unit":null}`},
-		{"with unit", Amount{Factor: 2, Unit: ptr("cups")}, `{"factor":"2","unit":"cups"}`},
+		{"with unit", Amount{Factor: 2, Unit: new("cups")}, `{"factor":"2","unit":"cups"}`},
 		{"rounds to 3 decimals", Amount{Factor: 1.0 / 3.0, Unit: nil}, `{"factor":"0.333","unit":null}`},
 	}
 	for _, tt := range tests {
@@ -68,8 +68,8 @@ func TestAmount_Serialize(t *testing.T) {
 		want     string
 	}{
 		{"no unit", Amount{Factor: 2, Unit: nil}, 3, "2"},
-		{"with unit", Amount{Factor: 1.5, Unit: ptr("cups")}, 3, "1.5 cups"},
-		{"integer with unit", Amount{Factor: 3, Unit: ptr("tsp")}, 0, "3 tsp"},
+		{"with unit", Amount{Factor: 1.5, Unit: new("cups")}, 3, "1.5 cups"},
+		{"integer with unit", Amount{Factor: 3, Unit: new("tsp")}, 0, "3 tsp"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestIngredient_Serialize(t *testing.T) {
 
 func TestAmount_Scale(t *testing.T) {
 	t.Parallel()
-	a := Amount{Factor: 2, Unit: ptr("cups")}
+	a := Amount{Factor: 2, Unit: new("cups")}
 	a.Scale(3)
 	if a.Factor != 6 {
 		t.Errorf("Factor = %v, want 6", a.Factor)
@@ -161,7 +161,7 @@ func TestRecipe_Scale(t *testing.T) {
 	t.Parallel()
 	r := &Recipe{
 		Yields: []Amount{
-			{Factor: 4, Unit: ptr("servings")},
+			{Factor: 4, Unit: new("servings")},
 		},
 		Ingredients: []Ingredient{
 			{Name: "flour", Amount: &Amount{Factor: 2, Unit: new("cups")}},
@@ -196,8 +196,8 @@ func TestRecipe_ScaleForYield(t *testing.T) {
 	}{
 		{
 			name:       "match unit",
-			yields:     []Amount{{Factor: 4, Unit: ptr("servings")}},
-			desired:    Amount{Factor: 8, Unit: ptr("servings")},
+			yields:     []Amount{{Factor: 4, Unit: new("servings")}},
+			desired:    Amount{Factor: 8, Unit: new("servings")},
 			wantFactor: 4, // 2*2
 		},
 		{
@@ -208,14 +208,14 @@ func TestRecipe_ScaleForYield(t *testing.T) {
 		},
 		{
 			name:       "unitless fallback to multiplier",
-			yields:     []Amount{{Factor: 4, Unit: ptr("servings")}},
+			yields:     []Amount{{Factor: 4, Unit: new("servings")}},
 			desired:    Amount{Factor: 3, Unit: nil},
 			wantFactor: 6, // 2*3
 		},
 		{
 			name:    "no matching unit",
-			yields:  []Amount{{Factor: 4, Unit: ptr("servings")}},
-			desired: Amount{Factor: 2, Unit: ptr("liters")},
+			yields:  []Amount{{Factor: 4, Unit: new("servings")}},
+			desired: Amount{Factor: 2, Unit: new("liters")},
 			wantErr: true,
 		},
 	}

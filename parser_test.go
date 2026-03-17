@@ -196,24 +196,24 @@ func TestParseAmountString(t *testing.T) {
 		wantErr  bool
 	}{
 		{"integer", "5", 5, nil, false},
-		{"integer with unit", "5 cups", 5, ptr("cups"), false},
-		{"decimal dot", "1.5 ml", 1.5, ptr("ml"), false},
-		{"decimal comma", "1,5 ml", 1.5, ptr("ml"), false},
+		{"integer with unit", "5 cups", 5, new("cups"), false},
+		{"decimal dot", "1.5 ml", 1.5, new("ml"), false},
+		{"decimal comma", "1,5 ml", 1.5, new("ml"), false},
 		{"leading decimal", ".5", 0.5, nil, false},
 		{"fraction", "1/2", 0.5, nil, false},
-		{"fraction with unit", "1/2 cup", 0.5, ptr("cup"), false},
+		{"fraction with unit", "1/2 cup", 0.5, new("cup"), false},
 		{"improper fraction", "1 1/2", 1.5, nil, false},
-		{"improper fraction with unit", "2 1/4 cups", 2.25, ptr("cups"), false},
+		{"improper fraction with unit", "2 1/4 cups", 2.25, new("cups"), false},
 		{"vulgar half", "½", 0.5, nil, false},
-		{"vulgar quarter", "¼ cup", 0.25, ptr("cup"), false},
+		{"vulgar quarter", "¼ cup", 0.25, new("cup"), false},
 		{"improper vulgar", "1 ½", 1.5, nil, false},
-		{"negative", "-3 oz", -3, ptr("oz"), false},
+		{"negative", "-3 oz", -3, new("oz"), false},
 		{"negative fraction", "-1/2", -0.5, nil, false},
-		{"whitespace trimmed", "  5  cups  ", 5, ptr("cups"), false},
+		{"whitespace trimmed", "  5  cups  ", 5, new("cups"), false},
 		{"unit only", "cups", 0, nil, true},
 		{"empty string", "", 0, nil, false},
 		{"fraction spaces", "1 / 2", 0.5, nil, false},
-		{"zero denominator falls to integer", "1/0", 1, ptr("/0"), false},
+		{"zero denominator falls to integer", "1/0", 1, new("/0"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
