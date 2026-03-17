@@ -1,0 +1,15 @@
+pre-commit:
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: |
+        unformatted=$(gofmt -l {staged_files})
+        if [ -n "$unformatted" ]; then
+          echo "gofmt: the following files need formatting:"
+          echo "$unformatted"
+          exit 1
+        fi
+    vet:
+      run: go vet ./...
+    test:
+      run: go test ./...
