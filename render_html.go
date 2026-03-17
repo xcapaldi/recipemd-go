@@ -82,8 +82,14 @@ const htmlGroupsTmpl = `{{ range . -}}
 // starts at h2 for top-level groups and increments for each sub-level.
 //
 // WARNING: This method is a work-in-progress and not yet ready for production
-// use. Known limitation: ingredient links reference raw .md file paths without
-// any resolution or conversion to HTML-friendly URLs.
+// use. Known limitations:
+//   - Ingredient links reference raw .md file paths without any resolution or
+//     conversion to HTML-friendly URLs.
+//   - CommonMark reference-style links (e.g. [text][ref] with a separate
+//     [ref]: url definition) only resolve correctly when the definition appears
+//     in the same section (Description or Instructions) as the usage. Definitions
+//     in one section are not visible when rendering the other, so cross-section
+//     reflinks are silently left unresolved.
 func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 	funcs := htmlFuncMap(p, rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
