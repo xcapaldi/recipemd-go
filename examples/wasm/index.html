@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecipeMD Browser Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      background: #f8f7f4;
+      color: #222;
+    }
+
+    h1 { margin: 0 0 0.25rem; font-size: 1.6rem; }
+    .subtitle { color: #666; margin: 0 0 1.5rem; font-size: 0.95rem; }
+
+    .status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+      margin-bottom: 1.25rem;
+    }
+    .status.ready { background: #d1fae5; color: #065f46; }
+    .status.error { background: #fee2e2; color: #991b1b; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .panel-header {
+      background: #f3f4f6;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 0.6rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #374151;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .panel-body { padding: 1rem; }
+
+    textarea {
+      width: 100%;
+      height: 340px;
+      font-family: "SFMono-Regular", "Consolas", monospace;
+      font-size: 0.82rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 0.75rem;
+      resize: vertical;
+      background: #fafafa;
+      line-height: 1.5;
+    }
+    textarea:focus { outline: 2px solid #6366f1; border-color: transparent; }
+
+    .scale-controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+    .field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.82rem; font-weight: 500; color: #374151; }
+    .field input {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      width: 120px;
+    }
+    .field input:focus { outline: 2px solid #6366f1; border-color: transparent; }
+
+    button {
+      padding: 0.45rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #6366f1;
+      color: #fff;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #4f46e5; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.secondary { background: #e5e7eb; color: #374151; }
+    button.secondary:hover:not(:disabled) { background: #d1d5db; }
+
+    .output-html {
+      min-height: 200px;
+      overflow: auto;
+    }
+
+    /* RecipeMD HTML renderer styles */
+    .output-html .recipemd-recipe {
+      font-family: Georgia, "Times New Roman", serif;
+      line-height: 1.6;
+      max-width: 100%;
+    }
+    .output-html .recipemd-title {
+      font-size: 1.4rem;
+      margin: 0 0 0.5rem;
+    }
+    .output-html .recipemd-preamble {
+      color: #555;
+      font-size: 0.92rem;
+      margin-bottom: 0.5rem;
+    }
+    .output-html .recipemd-tags { font-style: italic; }
+    .output-html .recipemd-separator { border: none; border-top: 2px solid #e5e7eb; margin: 0.75rem 0; }
+    .output-html .recipemd-ingredient-list {
+      list-style: disc;
+      padding-left: 1.4rem;
+      margin: 0.25rem 0;
+    }
+    .output-html .recipemd-ingredient { margin: 0.2rem 0; }
+    .output-html .recipemd-amount { font-style: italic; font-weight: 600; }
+    .output-html .recipemd-ingredient-name { }
+    .output-html .recipemd-ingredient-link { color: #4f46e5; }
+    .output-html .recipemd-group-title { font-size: 1rem; margin: 0.75rem 0 0.2rem; }
+    .output-html .recipemd-instructions { font-size: 0.92rem; }
+    .output-html .recipemd-instructions ol,
+    .output-html .recipemd-instructions ul { padding-left: 1.4rem; }
+    .output-html .recipemd-instructions li { margin: 0.35rem 0; }
+
+    .scaled-output {
+      font-family: "SFMono-Regular", "Consolas", monospace;
+      font-size: 0.8rem;
+      white-space: pre;
+      overflow: auto;
+      max-height: 340px;
+      background: #fafafa;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .error-box {
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.85rem;
+      color: #991b1b;
+      margin-top: 0.5rem;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .tab {
+      padding: 0.3rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #e5e7eb;
+      color: #374151;
+      cursor: pointer;
+      border: none;
+    }
+    .tab.active { background: #6366f1; color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>RecipeMD Browser Demo</h1>
+  <p class="subtitle">recipemd-go compiled to WebAssembly — parse, render, and scale recipes entirely in the browser.</p>
+
+  <div id="status" class="status">Loading WASM…</div>
+
+  <div class="layout">
+    <!-- Left: input -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">RecipeMD Markdown</div>
+        <div class="panel-body">
+          <textarea id="markdown" spellcheck="false"># Banana Bread
+
+A moist, classic banana bread that comes together in one bowl.
+
+*quick bread, breakfast*
+
+**1 loaf (12 slices)**
+
+---
+
+- *3* very ripe bananas
+- *80 ml* melted butter
+- *150 g* sugar
+- *1* egg
+- *1 tsp* vanilla extract
+- *1 tsp* baking soda
+- *0.25 tsp* salt
+- *190 g* all-purpose flour
+
+---
+
+Preheat oven to 175 °C (350 °F). Grease a 9×5 inch loaf pan.
+
+Mash the bananas in a large bowl until smooth. Stir in the melted butter.
+
+Mix in the sugar, egg, and vanilla. Sprinkle the baking soda and salt and mix
+well. Fold in the flour until just combined — do not overmix.
+
+Pour batter into the prepared pan. Bake 55–65 minutes until a toothpick
+inserted in the centre comes out clean. Cool in the pan for 10 minutes, then
+turn out onto a wire rack.
+</textarea>
+
+          <!-- Scaling controls -->
+          <div class="scale-controls">
+            <div class="field">
+              <label for="scale-factor">Scale by factor</label>
+              <input type="number" id="scale-factor" value="2" min="0.1" step="0.5">
+            </div>
+            <button id="btn-scale-factor" disabled>Scale ×</button>
+
+            <div class="field">
+              <label for="scale-yield">Scale for yield</label>
+              <input type="text" id="scale-yield" placeholder="e.g. 3 loaf" value="2 loaf">
+            </div>
+            <button id="btn-scale-yield" disabled>Scale to yield</button>
+
+            <button id="btn-reset" class="secondary">Reset</button>
+          </div>
+          <div id="scale-error" class="error-box" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: output -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">Output</div>
+        <div class="panel-body">
+          <div class="tab-bar">
+            <button class="tab active" data-tab="html">Rendered HTML</button>
+            <button class="tab" data-tab="scaled">Scaled Markdown</button>
+            <button class="tab" data-tab="json">Parsed JSON</button>
+          </div>
+
+          <div id="tab-html" class="output-html"></div>
+          <div id="tab-scaled" class="scaled-output" style="display:none"></div>
+          <div id="tab-json" class="scaled-output" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Go WASM runtime — path must match your build output location -->
+  <script src="wasm_exec.js"></script>
+  <script>
+    const go = new Go();
+    let wasmReady = false;
+    let originalMarkdown = document.getElementById('markdown').value;
+
+    const statusEl   = document.getElementById('status');
+    const mdEl       = document.getElementById('markdown');
+    const scaleErrEl = document.getElementById('scale-error');
+    const btnFactor  = document.getElementById('btn-scale-factor');
+    const btnYield   = document.getElementById('btn-scale-yield');
+    const btnReset   = document.getElementById('btn-reset');
+
+    // --- Tab switching ---
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.querySelectorAll('[id^="tab-"]').forEach(p => p.style.display = 'none');
+        document.getElementById('tab-' + tab.dataset.tab).style.display = '';
+      });
+    });
+
+    // --- Render helpers ---
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (cls ? ' ' + cls : '');
+    }
+
+    function showError(el, msg) {
+      el.textContent = msg;
+      el.style.display = '';
+    }
+
+    function hideError(el) { el.style.display = 'none'; }
+
+    function renderAll(md) {
+      hideError(scaleErrEl);
+      try {
+        // HTML tab
+        const htmlResult = recipemd.renderHTML(md, 2);
+        if (htmlResult.error) {
+          document.getElementById('tab-html').innerHTML =
+            `<div class="error-box">${htmlResult.error}</div>`;
+        } else {
+          document.getElementById('tab-html').innerHTML = htmlResult.result;
+        }
+
+        // JSON tab
+        const jsonResult = recipemd.parseToJSON(md);
+        document.getElementById('tab-json').textContent =
+          jsonResult.error ? '// Error: ' + jsonResult.error : jsonResult.result;
+
+      } catch (e) {
+        document.getElementById('tab-html').innerHTML =
+          `<div class="error-box">WASM error: ${e}</div>`;
+      }
+    }
+
+    // --- Event handlers ---
+    mdEl.addEventListener('input', () => {
+      if (wasmReady) renderAll(mdEl.value);
+    });
+
+    btnFactor.addEventListener('click', () => {
+      const factor = parseFloat(document.getElementById('scale-factor').value);
+      if (!factor || factor <= 0) { showError(scaleErrEl, 'Factor must be a positive number'); return; }
+      const result = recipemd.scaleByFactor(mdEl.value, factor, 2);
+      if (result.error) { showError(scaleErrEl, result.error); return; }
+      hideError(scaleErrEl);
+      mdEl.value = result.result;
+      document.getElementById('tab-scaled').textContent = result.result;
+      // Switch to scaled tab
+      tabs.forEach(t => t.classList.remove('active'));
+      document.querySelector('[data-tab="scaled"]').classList.add('active');
+      document.querySelectorAll('[id^="tab-"]').forEach(p => p.style.display = 'none');
+      document.getElementById('tab-scaled').style.display = '';
+      renderAll(mdEl.value);
+    });
+
+    btnYield.addEventListener('click', () => {
+      const yieldStr = document.getElementById('scale-yield').value.trim();
+      if (!yieldStr) { showError(scaleErrEl, 'Enter a yield value (e.g. "24 cookies" or "2")'); return; }
+      const result = recipemd.scaleForYield(mdEl.value, yieldStr, 2);
+      if (result.error) { showError(scaleErrEl, result.error); return; }
+      hideError(scaleErrEl);
+      mdEl.value = result.result;
+      document.getElementById('tab-scaled').textContent = result.result;
+      // Switch to scaled tab
+      tabs.forEach(t => t.classList.remove('active'));
+      document.querySelector('[data-tab="scaled"]').classList.add('active');
+      document.querySelectorAll('[id^="tab-"]').forEach(p => p.style.display = 'none');
+      document.getElementById('tab-scaled').style.display = '';
+      renderAll(mdEl.value);
+    });
+
+    btnReset.addEventListener('click', () => {
+      mdEl.value = originalMarkdown;
+      hideError(scaleErrEl);
+      if (wasmReady) renderAll(mdEl.value);
+    });
+
+    // --- WASM loading ---
+    WebAssembly.instantiateStreaming(fetch('recipemd.wasm'), go.importObject)
+      .then(result => {
+        go.run(result.instance);
+        wasmReady = true;
+        setStatus('WASM ready', 'ready');
+        btnFactor.disabled = false;
+        btnYield.disabled = false;
+        renderAll(mdEl.value);
+      })
+      .catch(err => {
+        setStatus('Failed to load WASM: ' + err, 'error');
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
