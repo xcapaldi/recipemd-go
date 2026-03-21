@@ -42,7 +42,7 @@ const htmlMainTmpl = `<article class="recipemd-recipe">
 </section>
 {{- with deref .Instructions }}
 <hr class="recipemd-separator">
-<section class="recipemd-instructions">{{ renderMD . }}</section>
+<section class="recipemd-instructions">{{ renderInstructionsMD . }}</section>
 {{- end }}
 </article>`
 
@@ -81,6 +81,12 @@ const htmlGroupsTmpl = `{{ range . -}}
 // Ingredient groups are rendered as nested <div> blocks; the heading level
 // starts at h2 for top-level groups and increments for each sub-level.
 //
+// When the parser was configured with [WithInlineIngredients], ingredient
+// amounts are injected into the instructions HTML. Each matched ingredient
+// name is wrapped in a <span class="recipemd-inline-ingredient"> element.
+// With [WithInlineHTMLHover] the amount is placed in the span's title
+// attribute instead of the visible text.
+//
 // WARNING: This method is a work-in-progress and not yet ready for production
 // use. Known limitations:
 //   - Ingredient links reference raw .md file paths without any resolution or
@@ -90,8 +96,16 @@ const htmlGroupsTmpl = `{{ range . -}}
 //     in the same section (Description or Instructions) as the usage. Definitions
 //     in one section are not visible when rendering the other, so cross-section
 //     reflinks are silently left unresolved.
+//   - Ingredient names containing HTML-special characters (& < >) may not be
+//     matched in inline injection because goldmark entity-encodes them in the
+//     output.
 func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
-	funcs := htmlFuncMap(p, rounding)
+	var inj *inlineInjector
+	if p.inlineIngredients {
+		inj = buildInjector(r, p.inlineIngredientsCfg, rounding)
+	}
+
+	funcs := htmlFuncMap(p, rounding, inj)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
 		out := make([]htmlGroupCtx, len(groups))
 		for i, g := range groups {
@@ -109,7 +123,7 @@ func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 	return buf.String()
 }
 
-func htmlFuncMap(p *Parser, rounding int) template.FuncMap {
+func htmlFuncMap(p *Parser, rounding int, inj *inlineInjector) template.FuncMap {
 	return template.FuncMap{
 		"join": strings.Join,
 		"deref": func(s *string) string {
@@ -135,6 +149,15 @@ func htmlFuncMap(p *Parser, rounding int) template.FuncMap {
 			var buf bytes.Buffer
 			_ = p.goldmarkProcessor.Convert([]byte(md), &buf)
 			return template.HTML(buf.String())
+		},
+		"renderInstructionsMD": func(md string) template.HTML {
+			var buf bytes.Buffer
+			_ = p.goldmarkProcessor.Convert([]byte(md), &buf)
+			htmlStr := buf.String()
+			if inj != nil {
+				htmlStr = inj.injectHTML(htmlStr)
+			}
+			return template.HTML(htmlStr)
 		},
 		"heading": func(level int, title string) template.HTML {
 			escaped := template.HTMLEscapeString(title)

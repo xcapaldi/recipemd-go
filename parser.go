@@ -54,10 +54,12 @@ func WithGithubFormattedMarkdown() Option {
 type Parser struct {
 	// Frontmatter reports whether the parser strips YAML/TOML front matter
 	// before parsing. Set via [WithFrontmatter].
-	Frontmatter        bool
-	hasTaskList        bool
-	goldmarkProcessor  goldmark.Markdown
-	goldmarkExtensions []goldmark.Extender
+	Frontmatter         bool
+	hasTaskList         bool
+	goldmarkProcessor   goldmark.Markdown
+	goldmarkExtensions  []goldmark.Extender
+	inlineIngredients   bool
+	inlineIngredientsCfg inlineIngredientsConfig
 }
 
 // NewParser creates a new Parser, applying any supplied options.
