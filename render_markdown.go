@@ -53,7 +53,19 @@ const mdGroupsTmpl = `{{ range . }}
 //
 // The returned string contains a complete, parseable RecipeMD document that
 // [Parser.Parse] can round-trip back to an equivalent [Recipe].
+//
+// When the parser was configured with [WithInlineIngredients], ingredient
+// amounts are injected into the instructions text before rendering.
 func (p *Parser) RenderMarkdown(r *Recipe, rounding int) string {
+	if p.inlineIngredients && r.Instructions != nil {
+		if inj := buildInjector(r, p.inlineIngredientsCfg, rounding); inj != nil {
+			injected := inj.injectText(*r.Instructions)
+			r2 := *r
+			r2.Instructions = &injected
+			r = &r2
+		}
+	}
+
 	funcs := renderFuncMap(rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []mdGroupCtx {
 		out := make([]mdGroupCtx, len(groups))
