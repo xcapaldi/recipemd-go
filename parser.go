@@ -32,12 +32,12 @@ func WithFrontmatter() Option { return func(p *Parser) { p.Frontmatter = true } 
 // WithGithubFormattedMarkdown returns an [Option] that enables GitHub Flavored
 // Markdown (GFM) extensions in the underlying markdown processor.
 //
-// This adds support for tables, strikethrough, autolinks, task lists, and
-// other GFM features. Task-list checkboxes in ingredient items are
-// transparently skipped so that ingredient parsing is unaffected.
+// This adds support for tables, strikethrough, autolinks, task lists,
+// footnotes, and other GFM features. Task-list checkboxes in ingredient items
+// are transparently skipped so that ingredient parsing is unaffected.
 func WithGithubFormattedMarkdown() Option {
 	return func(p *Parser) {
-		p.goldmarkExtensions = append(p.goldmarkExtensions, extension.GFM)
+		p.goldmarkExtensions = append(p.goldmarkExtensions, extension.GFM, extension.Footnote)
 		p.hasTaskList = true
 	}
 }

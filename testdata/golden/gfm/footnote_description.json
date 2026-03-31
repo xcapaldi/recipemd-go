@@ -1,0 +1,9 @@
+{
+  "title": "Recipe",
+  "description": "This has a footnote[^1].\n\n[^1]: The footnote text.",
+  "yields": [],
+  "tags": [],
+  "ingredients": [],
+  "ingredient_groups": [],
+  "instructions": null
+}

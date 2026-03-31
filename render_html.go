@@ -90,6 +90,9 @@ const htmlGroupsTmpl = `{{ range . -}}
 //     in the same section (Description or Instructions) as the usage. Definitions
 //     in one section are not visible when rendering the other, so cross-section
 //     reflinks are silently left unresolved.
+//   - Footnotes (e.g. [^note] with a [^note]: definition) have the same
+//     cross-section limitation as reference-style links: a footnote definition
+//     in one section is not visible when rendering the other.
 func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 	funcs := htmlFuncMap(p, rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
