@@ -51,6 +51,11 @@ type (
 		// Amount is the optional quantity for this ingredient. Nil when the
 		// ingredient has no amount specified.
 		Amount *Amount `json:"amount"`
+		// CompoundAmount holds a decomposed, human-friendly form of the amount
+		// after unit conversion (e.g. [{1, "cup"}, {1, "tbsp"}] for "1 cup and
+		// 1 tbsp"). Set by [Recipe.ConvertUnits]; nil otherwise. When non-empty,
+		// renderers use this instead of Amount for display.
+		CompoundAmount []Amount `json:"compound_amount,omitempty"`
 		// Link is the optional URL or relative file path of a linked recipe.
 		// Nil when the ingredient is not a link.
 		Link *string `json:"link"`
@@ -204,10 +209,15 @@ func (a Amount) Serialize(rounding int) string {
 
 // Serialize formats the ingredient as a human-readable string.
 //
-// When an amount is present it is serialised (via [Amount.Serialize]) and
-// prepended to the name, separated by a space (e.g. "200 g flour").
-// When there is no amount only the name is returned (e.g. "salt").
+// When a [Ingredient.CompoundAmount] is present (set by [Recipe.ConvertUnits]),
+// the compound form is used with fraction-friendly formatting (e.g.
+// "1 cup and 1 tbsp flour"). Otherwise, when an amount is present it is
+// serialised via [Amount.Serialize] (e.g. "200 g flour"). When there is no
+// amount only the name is returned (e.g. "salt").
 func (i Ingredient) Serialize(rounding int) string {
+	if len(i.CompoundAmount) > 0 {
+		return SerializeCompound(i.CompoundAmount) + " " + i.Name
+	}
 	if i.Amount != nil {
 		return i.Amount.Serialize(rounding) + " " + i.Name
 	}

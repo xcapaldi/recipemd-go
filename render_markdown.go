@@ -39,7 +39,7 @@ const mdMainTmpl = `# {{ .Title }}
 {{ end }}`
 
 const mdIngredientsTmpl = `{{ if . }}
-{{ range . }}- {{ if .Amount }}*{{ serializeAmount .Amount }}* {{ end }}{{ if .Link }}[{{ .Name }}]({{ deref .Link }}){{ else }}{{ .Name }}{{ end }}
+{{ range . }}- {{ if or .CompoundAmount .Amount }}*{{ serializeIngredientAmount . }}* {{ end }}{{ if .Link }}[{{ .Name }}]({{ deref .Link }}){{ else }}{{ .Name }}{{ end }}
 {{ end }}{{ end }}`
 
 const mdGroupsTmpl = `{{ range . }}

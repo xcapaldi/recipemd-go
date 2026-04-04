@@ -50,7 +50,7 @@ const htmlIngredientsTmpl = `{{ if . -}}
 <ul class="recipemd-ingredient-list">
 {{ range . -}}
   <li class="recipemd-ingredient">
-    {{- if .Amount }}<em class="recipemd-amount">{{ serializeAmount .Amount }}</em> {{ end -}}
+    {{- if or .CompoundAmount .Amount }}<em class="recipemd-amount">{{ serializeIngredientAmount . }}</em> {{ end -}}
     {{- if .Link }}<a class="recipemd-ingredient-link" href="{{ deref .Link }}">{{ .Name }}</a>
     {{- else }}<span class="recipemd-ingredient-name">{{ .Name }}</span>{{ end }}
   </li>
@@ -123,6 +123,15 @@ func htmlFuncMap(p *Parser, rounding int) template.FuncMap {
 				return ""
 			}
 			return a.Serialize(rounding)
+		},
+		"serializeIngredientAmount": func(ing Ingredient) string {
+			if len(ing.CompoundAmount) > 0 {
+				return SerializeCompound(ing.CompoundAmount)
+			}
+			if ing.Amount != nil {
+				return ing.Amount.Serialize(rounding)
+			}
+			return ""
 		},
 		"serializeYields": func(yields []Amount) string {
 			s := make([]string, len(yields))

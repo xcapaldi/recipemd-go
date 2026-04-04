@@ -20,6 +20,15 @@ func renderFuncMap(rounding int) template.FuncMap {
 			}
 			return a.Serialize(rounding)
 		},
+		"serializeIngredientAmount": func(ing Ingredient) string {
+			if len(ing.CompoundAmount) > 0 {
+				return SerializeCompound(ing.CompoundAmount)
+			}
+			if ing.Amount != nil {
+				return ing.Amount.Serialize(rounding)
+			}
+			return ""
+		},
 		"serializeYields": func(yields []Amount) string {
 			s := make([]string, len(yields))
 			for i, y := range yields {
