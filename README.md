@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/xcapaldi/recipemd-go.svg)](https://pkg.go.dev/github.com/xcapaldi/recipemd-go)
 ![GitHub Release](https://img.shields.io/github/v/release/xcapaldi/recipemd-go)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
 A Go library for parsing, scaling, and rendering recipes in the [RecipeMD](https://recipemd.org) format.
 This format builds on top of structured Markdown such that both humans and programs can digest it.
