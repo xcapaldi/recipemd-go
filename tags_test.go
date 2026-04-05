@@ -291,7 +291,7 @@ func TestRenderHTMLWithOptions(t *testing.T) {
 			IngredientGroups: []IngredientGroup{},
 			Instructions:     &instructions,
 		}
-		got := p.RenderHTMLWithOptions(r, 2, HTMLOptions{})
+		got := p.RenderHTMLWithOptions(r, 2, RenderOptions{})
 		if !strings.Contains(got, `class="recipemd-temperature"`) {
 			t.Errorf("temperature not annotated in: %s", got)
 		}
@@ -311,7 +311,7 @@ func TestRenderHTMLWithOptions(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "flour"}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderHTMLWithOptions(r, 2, HTMLOptions{})
+		got := p.RenderHTMLWithOptions(r, 2, RenderOptions{})
 		if !strings.Contains(got, `class="recipemd-temperature"`) {
 			t.Errorf("temperature not annotated in description: %s", got)
 		}
@@ -329,7 +329,7 @@ func TestRenderHTMLWithOptions(t *testing.T) {
 			Instructions:     &instructions,
 		}
 		f := Fahrenheit
-		got := p.RenderHTMLWithOptions(r, 0, HTMLOptions{ConvertTemperature: &f})
+		got := p.RenderHTMLWithOptions(r, 0, RenderOptions{ConvertTemperature: &f})
 		if !strings.Contains(got, `data-unit="F"`) {
 			t.Errorf("should convert to F in: %s", got)
 		}
@@ -361,6 +361,179 @@ func TestRenderHTMLWithOptions(t *testing.T) {
 		}
 		if !strings.Contains(got, `class="recipemd-time"`) {
 			t.Errorf("RenderHTML should also annotate times: %s", got)
+		}
+	})
+}
+
+func TestConvertTemperaturesInText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("C to F", func(t *testing.T) {
+		t.Parallel()
+		got := convertTemperaturesInText("Bake at 100°C.", Fahrenheit, 2)
+		if got != "Bake at 212°F." {
+			t.Errorf("got %q, want %q", got, "Bake at 212°F.")
+		}
+	})
+
+	t.Run("F to C", func(t *testing.T) {
+		t.Parallel()
+		got := convertTemperaturesInText("Bake at 212°F.", Celsius, 2)
+		if got != "Bake at 100°C." {
+			t.Errorf("got %q, want %q", got, "Bake at 100°C.")
+		}
+	})
+
+	t.Run("same unit unchanged", func(t *testing.T) {
+		t.Parallel()
+		got := convertTemperaturesInText("Bake at 180°C.", Celsius, 2)
+		if got != "Bake at 180°C." {
+			t.Errorf("got %q, want %q", got, "Bake at 180°C.")
+		}
+	})
+
+	t.Run("word fahrenheit to celsius", func(t *testing.T) {
+		t.Parallel()
+		got := convertTemperaturesInText("Heat to 392 Fahrenheit.", Celsius, 2)
+		if got != "Heat to 200°C." {
+			t.Errorf("got %q, want %q", got, "Heat to 200°C.")
+		}
+	})
+
+	t.Run("multiple temperatures", func(t *testing.T) {
+		t.Parallel()
+		got := convertTemperaturesInText("First 100°C then 212°F.", Celsius, 2)
+		if got != "First 100°C then 100°C." {
+			t.Errorf("got %q, want %q", got, "First 100°C then 100°C.")
+		}
+	})
+}
+
+func TestRenderMarkdownWithOptions(t *testing.T) {
+	t.Parallel()
+	p := NewParser()
+
+	t.Run("converts temperatures in instructions", func(t *testing.T) {
+		t.Parallel()
+		instructions := "Bake at 100°C for 30 minutes."
+		r := &Recipe{
+			Title:            "Cake",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "flour"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		f := Fahrenheit
+		got := p.RenderMarkdownWithOptions(r, 2, RenderOptions{ConvertTemperature: &f})
+		if !strings.Contains(got, "212°F") {
+			t.Errorf("temperature not converted in instructions: %s", got)
+		}
+		if strings.Contains(got, "100°C") {
+			t.Errorf("original temperature should be replaced: %s", got)
+		}
+	})
+
+	t.Run("converts temperatures in description", func(t *testing.T) {
+		t.Parallel()
+		desc := "A bread baked at 200°C."
+		r := &Recipe{
+			Title:            "Bread",
+			Description:      &desc,
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "flour"}},
+			IngredientGroups: []IngredientGroup{},
+		}
+		f := Fahrenheit
+		got := p.RenderMarkdownWithOptions(r, 0, RenderOptions{ConvertTemperature: &f})
+		if !strings.Contains(got, "392°F") {
+			t.Errorf("temperature not converted in description: %s", got)
+		}
+	})
+
+	t.Run("no conversion without option", func(t *testing.T) {
+		t.Parallel()
+		instructions := "Bake at 180°C."
+		r := &Recipe{
+			Title:            "Test",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "flour"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		got := p.RenderMarkdownWithOptions(r, 2, RenderOptions{})
+		if !strings.Contains(got, "180°C") {
+			t.Errorf("temperature should be unchanged: %s", got)
+		}
+	})
+
+	t.Run("does not mutate original recipe", func(t *testing.T) {
+		t.Parallel()
+		instructions := "Bake at 100°C."
+		r := &Recipe{
+			Title:            "Test",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "flour"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		f := Fahrenheit
+		p.RenderMarkdownWithOptions(r, 2, RenderOptions{ConvertTemperature: &f})
+		if *r.Instructions != "Bake at 100°C." {
+			t.Errorf("original recipe was mutated: %s", *r.Instructions)
+		}
+	})
+}
+
+func TestRenderJSONWithOptions(t *testing.T) {
+	t.Parallel()
+	p := NewParser()
+
+	t.Run("converts temperatures", func(t *testing.T) {
+		t.Parallel()
+		instructions := "Bake at 100°C."
+		r := &Recipe{
+			Title:            "Test",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "flour"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		f := Fahrenheit
+		got, err := p.RenderJSONWithOptions(r, RenderOptions{ConvertTemperature: &f})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(got)
+		if !strings.Contains(s, "212°F") {
+			t.Errorf("temperature not converted in JSON: %s", s)
+		}
+		if strings.Contains(s, "100°C") {
+			t.Errorf("original temperature should be replaced in JSON: %s", s)
+		}
+	})
+
+	t.Run("no conversion without option", func(t *testing.T) {
+		t.Parallel()
+		instructions := "Bake at 180°C."
+		r := &Recipe{
+			Title:            "Test",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "flour"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		got, err := p.RenderJSONWithOptions(r, RenderOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(got), "180°C") {
+			t.Errorf("temperature should be unchanged: %s", string(got))
 		}
 	})
 }

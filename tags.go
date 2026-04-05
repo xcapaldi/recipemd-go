@@ -18,11 +18,17 @@ const (
 	Fahrenheit
 )
 
-// HTMLOptions controls optional behavior for [Parser.RenderHTMLWithOptions].
-type HTMLOptions struct {
+// RenderOptions controls optional behavior for rendering methods.
+//
+// All rendering methods that accept RenderOptions apply temperature conversion
+// to the free-text fields (Description, Instructions) of the recipe. The HTML
+// renderer additionally wraps detected temperatures and times in <span> tags
+// with data attributes.
+type RenderOptions struct {
 	// ConvertTemperature, when non-nil, converts all detected temperatures
-	// to the specified unit system. The rendered output shows the converted
-	// value and unit, with the original preserved in data attributes.
+	// to the specified unit system. For HTML output the original value is
+	// preserved in data attributes; for Markdown and JSON the text is
+	// rewritten in place.
 	ConvertTemperature *TemperatureUnit
 }
 
@@ -155,6 +161,44 @@ func annotateTemperatures(html string, convert *TemperatureUnit, rounding int) s
 			)
 		})
 	})
+}
+
+// convertTemperaturesInText replaces temperature patterns in plain text with
+// the converted value and unit symbol. Unlike annotateTemperatures it does not
+// add any HTML markup, making it suitable for Markdown and JSON output.
+func convertTemperaturesInText(text string, to TemperatureUnit, rounding int) string {
+	return temperatureRe.ReplaceAllStringFunc(text, func(match string) string {
+		groups := temperatureRe.FindStringSubmatch(match)
+		if groups == nil {
+			return match
+		}
+		value, err := strconv.ParseFloat(groups[1], 64)
+		if err != nil {
+			return match
+		}
+		fromUnit := parseTemperatureUnit(groups[2])
+		if fromUnit == to {
+			return match
+		}
+		converted := convertTemp(value, fromUnit, to)
+		return formatTagValue(converted, rounding) + tempSymbol(to)
+	})
+}
+
+// recipeWithConvertedTemperatures returns a shallow copy of r with temperature
+// patterns in Description and Instructions converted to the target unit. The
+// original Recipe is not modified.
+func recipeWithConvertedTemperatures(r *Recipe, to TemperatureUnit, rounding int) *Recipe {
+	clone := *r
+	if clone.Description != nil {
+		d := convertTemperaturesInText(*clone.Description, to, rounding)
+		clone.Description = &d
+	}
+	if clone.Instructions != nil {
+		i := convertTemperaturesInText(*clone.Instructions, to, rounding)
+		clone.Instructions = &i
+	}
+	return &clone
 }
 
 func annotateTimes(html string) string {

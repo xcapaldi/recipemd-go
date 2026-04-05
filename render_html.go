@@ -91,7 +91,7 @@ const htmlGroupsTmpl = `{{ range . -}}
 //     in one section are not visible when rendering the other, so cross-section
 //     reflinks are silently left unresolved.
 func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
-	return p.RenderHTMLWithOptions(r, rounding, HTMLOptions{})
+	return p.RenderHTMLWithOptions(r, rounding, RenderOptions{})
 }
 
 // RenderHTMLWithOptions renders r as an HTML <article> element with
@@ -101,11 +101,11 @@ func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 // <span> tags with CSS classes "recipemd-temperature" and "recipemd-time"
 // respectively, along with data attributes for the parsed value and unit.
 //
-// When [HTMLOptions.ConvertTemperature] is set, all detected temperatures
+// When [RenderOptions.ConvertTemperature] is set, all detected temperatures
 // are converted to the target unit. The converted value is displayed while
 // the original value and unit are preserved in data-original-value and
 // data-original-unit attributes.
-func (p *Parser) RenderHTMLWithOptions(r *Recipe, rounding int, opts HTMLOptions) string {
+func (p *Parser) RenderHTMLWithOptions(r *Recipe, rounding int, opts RenderOptions) string {
 	funcs := htmlFuncMap(p, rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
 		out := make([]htmlGroupCtx, len(groups))
