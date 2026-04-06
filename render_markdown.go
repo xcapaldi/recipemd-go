@@ -54,20 +54,6 @@ const mdGroupsTmpl = `{{ range . }}
 // The returned string contains a complete, parseable RecipeMD document that
 // [Parser.Parse] can round-trip back to an equivalent [Recipe].
 func (p *Parser) RenderMarkdown(r *Recipe, rounding int) string {
-	return p.RenderMarkdownWithOptions(r, rounding, RenderOptions{})
-}
-
-// RenderMarkdownWithOptions renders r as a RecipeMD-formatted markdown string
-// with configurable behavior.
-//
-// When [RenderOptions.ConvertTemperature] is set, all detected temperatures in
-// the Description and Instructions fields are converted to the target unit
-// before rendering. The converted value and unit symbol replace the original
-// text in the output.
-func (p *Parser) RenderMarkdownWithOptions(r *Recipe, rounding int, opts RenderOptions) string {
-	if opts.ConvertTemperature != nil {
-		r = recipeWithConvertedTemperatures(r, *opts.ConvertTemperature, rounding)
-	}
 	funcs := renderFuncMap(rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []mdGroupCtx {
 		out := make([]mdGroupCtx, len(groups))

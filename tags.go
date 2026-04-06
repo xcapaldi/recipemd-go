@@ -18,20 +18,6 @@ const (
 	Fahrenheit
 )
 
-// RenderOptions controls optional behavior for rendering methods.
-//
-// All rendering methods that accept RenderOptions apply temperature conversion
-// to the free-text fields (Description, Instructions) of the recipe. The HTML
-// renderer additionally wraps detected temperatures and times in <span> tags
-// with data attributes.
-type RenderOptions struct {
-	// ConvertTemperature, when non-nil, converts all detected temperatures
-	// to the specified unit system. For HTML output the original value is
-	// preserved in data attributes; for Markdown and JSON the text is
-	// rewritten in place.
-	ConvertTemperature *TemperatureUnit
-}
-
 // temperatureRe matches patterns like "180°C", "350 °F", "200 celsius", "375 fahrenheit".
 // It requires either the ° symbol or the full word to avoid false positives on bare C/F.
 var temperatureRe = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(°\s*[CcFf]|[Cc]elsius|[Ff]ahrenheit)`)
@@ -127,45 +113,9 @@ func formatTagValue(v float64, rounding int) string {
 	return s
 }
 
-func annotateTemperatures(html string, convert *TemperatureUnit, rounding int) string {
-	return replaceInTextNodes(html, func(text string) string {
-		return temperatureRe.ReplaceAllStringFunc(text, func(match string) string {
-			groups := temperatureRe.FindStringSubmatch(match)
-			if groups == nil {
-				return match
-			}
-			value, err := strconv.ParseFloat(groups[1], 64)
-			if err != nil {
-				return match
-			}
-			fromUnit := parseTemperatureUnit(groups[2])
-
-			if convert != nil && *convert != fromUnit {
-				toUnit := *convert
-				converted := convertTemp(value, fromUnit, toUnit)
-				cStr := formatTagValue(converted, rounding)
-				vStr := formatTagValue(value, rounding)
-				return fmt.Sprintf(
-					`<span class="recipemd-temperature" data-unit="%s" data-value="%s" data-original-unit="%s" data-original-value="%s">%s%s</span>`,
-					tempUnitCode(toUnit), cStr,
-					tempUnitCode(fromUnit), vStr,
-					cStr, tempSymbol(toUnit),
-				)
-			}
-
-			return fmt.Sprintf(
-				`<span class="recipemd-temperature" data-unit="%s" data-value="%s">%s</span>`,
-				tempUnitCode(fromUnit),
-				formatTagValue(value, rounding),
-				match,
-			)
-		})
-	})
-}
-
-// convertTemperaturesInText replaces temperature patterns in plain text with
-// the converted value and unit symbol. Unlike annotateTemperatures it does not
-// add any HTML markup, making it suitable for Markdown and JSON output.
+// convertTemperaturesInText replaces temperature patterns in plain text,
+// converting values from one unit system to another. Temperatures already in
+// the target unit are left unchanged.
 func convertTemperaturesInText(text string, to TemperatureUnit, rounding int) string {
 	return temperatureRe.ReplaceAllStringFunc(text, func(match string) string {
 		groups := temperatureRe.FindStringSubmatch(match)
@@ -185,22 +135,32 @@ func convertTemperaturesInText(text string, to TemperatureUnit, rounding int) st
 	})
 }
 
-// recipeWithConvertedTemperatures returns a shallow copy of r with temperature
-// patterns in Description and Instructions converted to the target unit. The
-// original Recipe is not modified.
-func recipeWithConvertedTemperatures(r *Recipe, to TemperatureUnit, rounding int) *Recipe {
-	clone := *r
-	if clone.Description != nil {
-		d := convertTemperaturesInText(*clone.Description, to, rounding)
-		clone.Description = &d
-	}
-	if clone.Instructions != nil {
-		i := convertTemperaturesInText(*clone.Instructions, to, rounding)
-		clone.Instructions = &i
-	}
-	return &clone
+// annotateTemperatures wraps detected temperature patterns in HTML text nodes
+// with <span class="recipemd-temperature"> tags and data attributes.
+func annotateTemperatures(html string, rounding int) string {
+	return replaceInTextNodes(html, func(text string) string {
+		return temperatureRe.ReplaceAllStringFunc(text, func(match string) string {
+			groups := temperatureRe.FindStringSubmatch(match)
+			if groups == nil {
+				return match
+			}
+			value, err := strconv.ParseFloat(groups[1], 64)
+			if err != nil {
+				return match
+			}
+			fromUnit := parseTemperatureUnit(groups[2])
+			return fmt.Sprintf(
+				`<span class="recipemd-temperature" data-unit="%s" data-value="%s">%s</span>`,
+				tempUnitCode(fromUnit),
+				formatTagValue(value, rounding),
+				match,
+			)
+		})
+	})
 }
 
+// annotateTimes wraps detected time patterns in HTML text nodes with
+// <span class="recipemd-time"> tags and data attributes.
 func annotateTimes(html string) string {
 	return replaceInTextNodes(html, func(text string) string {
 		return timeRe.ReplaceAllStringFunc(text, func(match string) string {
