@@ -106,7 +106,11 @@ func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 
 	var buf bytes.Buffer
 	_ = tmpl.Execute(&buf, r)
-	return buf.String()
+
+	html := buf.String()
+	html = annotateTemperatures(html, rounding)
+	html = annotateTimes(html)
+	return html
 }
 
 func htmlFuncMap(p *Parser, rounding int) template.FuncMap {
