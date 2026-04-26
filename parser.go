@@ -885,12 +885,7 @@ func extractPlainText(node ast.Node, source []byte) (string, error) {
 	var buf bytes.Buffer
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		if text, ok := child.(*ast.Text); ok {
-			if buf.Len() > 0 {
-				if _, err := buf.WriteRune(' '); err != nil {
-					return "", fmt.Errorf("buf.WriteRune: %w", err)
-				}
-			}
-			if _, err := buf.Write(bytes.TrimSpace(text.Value(source))); err != nil {
+			if _, err := buf.Write(text.Value(source)); err != nil {
 				return "", fmt.Errorf("buf.Write: %w", err)
 			}
 		} else {
@@ -901,7 +896,7 @@ func extractPlainText(node ast.Node, source []byte) (string, error) {
 			buf.WriteString(childText)
 		}
 	}
-	return buf.String(), nil
+	return strings.TrimSpace(buf.String()), nil
 }
 
 // extractRawMarkdown extracts raw source for a block node, preserving markdown syntax.
