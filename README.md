@@ -22,6 +22,7 @@ This format builds on top of structured Markdown such that both humans and progr
 - *1* `scale` — scale a recipe by factor or target yield
 - *1* `flatten` — inline all linked sub-recipe ingredients
 - *1* `renderhtml` — render a recipe as an HTML `<article>`
+- *1* `okf` — render a recipe as an [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/) concept document
 
 ---
 
@@ -275,7 +276,22 @@ data, err := p.RenderJSON(recipe)
 
 // HTML <article> element (amounts rounded to 3 decimal places) (still WIP)
 fmt.Println(p.RenderHTML(recipe, 3))
+
+// Open Knowledge Format concept document (YAML frontmatter + RecipeMD body)
+fmt.Print(p.RenderOKF(recipe, 2))
 ```
+
+### Open Knowledge Format (OKF)
+
+[OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/)
+is a vendor-neutral spec for sharing curated knowledge with AI systems as
+plain Markdown files with YAML frontmatter; the only required field is `type`.
+`RenderOKF` wraps a recipe in OKF frontmatter (`type: Recipe`, plus `title`,
+`description`, and `tags` copied from the recipe) and uses
+[`Parser.RenderMarkdown`](#rendering) for the body, so the result is both a
+valid OKF concept document and a complete, parseable RecipeMD recipe.
+Because the body is plain RecipeMD, a `Parser` built with `WithFrontmatter`
+parses the OKF output straight back into a `Recipe`.
 
 ## Examples
 
@@ -288,6 +304,7 @@ demonstrate common use cases:
 | [`examples/scale`](examples/scale) | Scale a recipe by factor or target yield, write RecipeMD to stdout |
 | [`examples/flatten`](examples/flatten) | Inline all linked sub-recipes, write RecipeMD to stdout |
 | [`examples/renderhtml`](examples/renderhtml) | Flatten and render as an HTML `<article>` |
+| [`examples/okf`](examples/okf) | Render a recipe as an OKF concept document |
 
 Run any example directly:
 
@@ -296,6 +313,7 @@ go run ./examples/parse   carbonara.md
 go run ./examples/scale   carbonara.md "4 servings"
 go run ./examples/flatten main_dish.md
 go run ./examples/renderhtml carbonara.md
+go run ./examples/okf carbonara.md
 ```
 
 ## Running tests
