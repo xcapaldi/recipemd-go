@@ -92,4 +92,57 @@ func TestRenderOKF(t *testing.T) {
 			t.Fatalf("Ingredients = %v, want %v", got.Ingredients, r.Ingredients)
 		}
 	})
+
+	t.Run("round trips OKF metadata: type, resource, timestamp, extra", func(t *testing.T) {
+		t.Parallel()
+		resource := "https://example.com/guac"
+		timestamp := "2024-01-02T15:04:05Z"
+		r := &Recipe{
+			Title:            "Guac",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "avocado"}},
+			IngredientGroups: []IngredientGroup{},
+			OKF: &OKFMetadata{
+				Type:      "Playbook",
+				Resource:  &resource,
+				Timestamp: &timestamp,
+				Extra:     map[string]string{"custom_field": "hello", "another": "value"},
+			},
+		}
+		doc := p.RenderOKF(r, 3)
+		if !strings.Contains(doc, "type: Playbook\n") {
+			t.Errorf("missing custom type field:\n%s", doc)
+		}
+		if !strings.Contains(doc, `resource: "https://example.com/guac"`) {
+			t.Errorf("missing resource field:\n%s", doc)
+		}
+		if !strings.Contains(doc, `timestamp: "2024-01-02T15:04:05Z"`) {
+			t.Errorf("missing timestamp field:\n%s", doc)
+		}
+		if !strings.Contains(doc, `another: "value"`) || !strings.Contains(doc, `custom_field: "hello"`) {
+			t.Errorf("missing extra fields:\n%s", doc)
+		}
+
+		fp := NewParser(WithFrontmatter())
+		got, err := fp.Parse(strings.NewReader(doc))
+		if err != nil {
+			t.Fatalf("Parse: %v", err)
+		}
+		if got.OKF == nil {
+			t.Fatal("OKF metadata not round-tripped")
+		}
+		if got.OKF.Type != "Playbook" {
+			t.Errorf("Type = %q, want %q", got.OKF.Type, "Playbook")
+		}
+		if got.OKF.Resource == nil || *got.OKF.Resource != resource {
+			t.Errorf("Resource = %v, want %q", got.OKF.Resource, resource)
+		}
+		if got.OKF.Timestamp == nil || *got.OKF.Timestamp != timestamp {
+			t.Errorf("Timestamp = %v, want %q", got.OKF.Timestamp, timestamp)
+		}
+		if got.OKF.Extra["custom_field"] != "hello" || got.OKF.Extra["another"] != "value" {
+			t.Errorf("Extra = %v, want custom_field=hello, another=value", got.OKF.Extra)
+		}
+	})
 }

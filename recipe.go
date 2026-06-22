@@ -37,6 +37,13 @@ type (
 		// Instructions is the optional free-form text after the second
 		// thematic break, preserved as raw markdown. Nil when absent.
 		Instructions *string `json:"instructions"`
+		// OKF holds Open Knowledge Format frontmatter fields that have no
+		// equivalent elsewhere on Recipe (concept type, resource URI,
+		// timestamp, and any extra producer-defined keys). Set by
+		// [Parser.Parse] when [WithFrontmatter] is used and the source
+		// document's frontmatter declares a non-empty `type` field; read by
+		// [Parser.RenderOKF] to round-trip those fields. Nil when absent.
+		OKF *OKFMetadata `json:"okf,omitempty"`
 	}
 
 	// Ingredient represents a single item in a recipe's ingredient list.

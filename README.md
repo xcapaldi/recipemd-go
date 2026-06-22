@@ -286,12 +286,37 @@ fmt.Print(p.RenderOKF(recipe, 2))
 [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 is a vendor-neutral spec for sharing curated knowledge with AI systems as
 plain Markdown files with YAML frontmatter; the only required field is `type`.
-`RenderOKF` wraps a recipe in OKF frontmatter (`type: Recipe`, plus the
-spec's recommended `title`, `description`, and `tags` fields copied from the
-recipe) and uses [`Parser.RenderMarkdown`](#rendering) for the body, so the
-result is both a valid OKF concept document and a complete, parseable
-RecipeMD recipe. Because the body is plain RecipeMD, a `Parser` built with
-`WithFrontmatter` parses the OKF output straight back into a `Recipe`.
+`RenderOKF` wraps a recipe in OKF frontmatter (`type`, plus the spec's
+recommended `title`, `description`, `resource`, `tags`, and `timestamp`
+fields, plus any extra producer-defined keys) and uses
+[`Parser.RenderMarkdown`](#rendering) for the body, so the result is both a
+valid OKF concept document and a complete, parseable RecipeMD recipe.
+
+`type`, `resource`, `timestamp`, and any unrecognised frontmatter keys have
+no equivalent elsewhere on `Recipe`, so they round-trip through
+`Recipe.OKF` (an `*OKFMetadata`):
+
+```go
+resource := "https://example.com/guacamole"
+timestamp := "2024-01-02T15:04:05Z"
+recipe.OKF = &recipemd.OKFMetadata{
+    Type:      "Recipe",
+    Resource:  &resource,
+    Timestamp: &timestamp,
+    Extra:     map[string]string{"author": "Jane Doe"},
+}
+fmt.Print(p.RenderOKF(recipe, 2))
+```
+
+Because the body is plain RecipeMD, a `Parser` built with `WithFrontmatter`
+parses the OKF output straight back into a `Recipe`: frontmatter `type`,
+`resource`, `timestamp`, and extra keys populate `Recipe.OKF`, while
+`description` and `tags` are merged into `Recipe.Description` and
+`Recipe.Tags` *only* as a fallback when the RecipeMD body itself leaves them
+unset — the body always takes precedence. This merge only happens when the
+frontmatter declares a non-empty `type` field; frontmatter without one (e.g.
+from a note-taking tool like Denote) is stripped but otherwise left alone,
+so `WithFrontmatter` remains safe to use outside of OKF documents.
 
 ## Examples
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -44,6 +45,110 @@ title = "ignored"
 	}
 	if recipe.Title != "Guacamole" {
 		t.Errorf("Title = %q, want %q", recipe.Title, "Guacamole")
+	}
+}
+
+func TestParser_WithFrontmatter_NonOKF_NoMerge(t *testing.T) {
+	// Frontmatter without a `type` field (e.g. from Denote) is stripped but
+	// not treated as OKF metadata: it must not be merged into the recipe,
+	// and Recipe.OKF must stay nil. This preserves existing WithFrontmatter
+	// behavior for non-OKF use cases.
+	input := []byte(`---
+title: ignored
+tags: should-not-appear
+---
+# Guacamole
+
+---
+
+- avocado
+`)
+	p := NewParser(WithFrontmatter())
+	recipe, err := p.Parse(bytes.NewReader(input))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if recipe.OKF != nil {
+		t.Errorf("OKF = %+v, want nil for frontmatter without a type field", recipe.OKF)
+	}
+	if len(recipe.Tags) != 0 {
+		t.Errorf("Tags = %v, want empty (non-OKF frontmatter must not be merged)", recipe.Tags)
+	}
+}
+
+func TestParser_WithFrontmatter_OKF_MergesFallbacks(t *testing.T) {
+	input := []byte(`---
+type: Recipe
+description: |
+  A description from frontmatter.
+tags: [from-frontmatter, vegan]
+resource: "https://example.com/guac"
+timestamp: "2026-01-01T00:00:00Z"
+custom_field: hello
+---
+# Guacamole
+
+---
+
+- avocado
+`)
+	p := NewParser(WithFrontmatter())
+	recipe, err := p.Parse(bytes.NewReader(input))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if recipe.Description == nil || *recipe.Description != "A description from frontmatter." {
+		t.Errorf("Description = %v, want merged frontmatter description", recipe.Description)
+	}
+	if got := strings.Join(recipe.Tags, ","); got != "from-frontmatter,vegan" {
+		t.Errorf("Tags = %v, want merged frontmatter tags", recipe.Tags)
+	}
+	if recipe.OKF == nil {
+		t.Fatal("OKF = nil, want populated metadata")
+	}
+	if recipe.OKF.Type != "Recipe" {
+		t.Errorf("OKF.Type = %q, want %q", recipe.OKF.Type, "Recipe")
+	}
+	if recipe.OKF.Resource == nil || *recipe.OKF.Resource != "https://example.com/guac" {
+		t.Errorf("OKF.Resource = %v, want %q", recipe.OKF.Resource, "https://example.com/guac")
+	}
+	if recipe.OKF.Timestamp == nil || *recipe.OKF.Timestamp != "2026-01-01T00:00:00Z" {
+		t.Errorf("OKF.Timestamp = %v, want %q", recipe.OKF.Timestamp, "2026-01-01T00:00:00Z")
+	}
+	if recipe.OKF.Extra["custom_field"] != "hello" {
+		t.Errorf("OKF.Extra[custom_field] = %q, want %q", recipe.OKF.Extra["custom_field"], "hello")
+	}
+}
+
+func TestParser_WithFrontmatter_OKF_BodyTakesPrecedence(t *testing.T) {
+	// When the RecipeMD body already supplies a description/tags, the
+	// frontmatter's copies are not used to override them.
+	input := []byte(`---
+type: Recipe
+description: |
+  Frontmatter description, should be ignored.
+tags: [frontmatter-tag]
+---
+# Guacamole
+
+Body description.
+
+*body-tag*
+
+---
+
+- avocado
+`)
+	p := NewParser(WithFrontmatter())
+	recipe, err := p.Parse(bytes.NewReader(input))
+	if err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	if recipe.Description == nil || *recipe.Description != "Body description." {
+		t.Errorf("Description = %v, want body description to take precedence", recipe.Description)
+	}
+	if got := strings.Join(recipe.Tags, ","); got != "body-tag" {
+		t.Errorf("Tags = %v, want body tags to take precedence", recipe.Tags)
 	}
 }
 
@@ -338,6 +443,11 @@ func TestStripFrontmatter_Extended(t *testing.T) {
 		{"short input", "ab", "ab"},
 		{"empty closing", "---\n---\n", ""},
 		{"closing at eof", "---\nfoo\n---", ""},
+		{
+			"indented dashes inside a block scalar are not a closing fence",
+			"---\ndescription: |\n  para one\n  ---\n  para two\n---\nbody",
+			"body",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

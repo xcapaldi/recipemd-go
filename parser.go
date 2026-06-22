@@ -21,12 +21,24 @@ import (
 // Options are passed to [NewParser] and applied before the first parse.
 type Option func(*Parser)
 
-// WithFrontmatter returns an [Option] that instructs the parser to strip
-// YAML (---) or TOML (+++) front matter from the source before parsing.
+// WithFrontmatter returns an [Option] that instructs the parser to remove
+// YAML (---) or TOML (+++) front matter from the source before parsing, so
+// the format can be combined with other tools that rely on frontmatter
+// (e.g. Denote).
 //
 // Front matter is identified by a fence of three dashes or plus signs on its
-// own line at the very start of the document. The content up to and including
-// the closing fence is removed before the RecipeMD document is parsed.
+// own line at the very start of the document; the closing fence must
+// likewise start at column 0. The content up to and including the closing
+// fence is removed before the RecipeMD document is parsed.
+//
+// If the frontmatter is YAML and declares a non-empty `type` field, it is
+// additionally treated as Open Knowledge Format (OKF) metadata: any
+// `description` or `tags` it carries are merged into [Recipe.Description]
+// and [Recipe.Tags] as a fallback for whichever the body itself leaves
+// unset, and the full set of OKF fields (including `resource`, `timestamp`,
+// and any extra keys) is attached as [Recipe.OKF]. Frontmatter lacking a
+// `type` field (e.g. from other note-taking tools) is stripped but
+// otherwise ignored, as before.
 func WithFrontmatter() Option { return func(p *Parser) { p.Frontmatter = true } }
 
 // WithGithubFormattedMarkdown returns an [Option] that enables GitHub Flavored
@@ -107,8 +119,14 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 		return nil, fmt.Errorf("io.ReadAll: %w", err)
 	}
 
+	var okfFields *frontmatterFields
 	if p.Frontmatter {
-		source = stripFrontmatter(source)
+		if content, body, fence, found := splitFrontmatter(source); found {
+			source = body
+			if string(fence) == "---" {
+				okfFields = parseOKFFrontmatter(content)
+			}
+		}
 	}
 
 	document := p.goldmarkProcessor.Parser().Parse(text.NewReader(source))
@@ -245,6 +263,21 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 		instructions := strings.Trim(string(source[breakEnd:]), "\n")
 		if instructions != "" {
 			recipe.Instructions = &instructions
+		}
+	}
+
+	if okfFields != nil {
+		if recipe.Description == nil && okfFields.Description != nil {
+			recipe.Description = okfFields.Description
+		}
+		if len(recipe.Tags) == 0 && len(okfFields.Tags) > 0 {
+			recipe.Tags = okfFields.Tags
+		}
+		recipe.OKF = &OKFMetadata{
+			Type:      okfFields.Type,
+			Resource:  okfFields.Resource,
+			Timestamp: okfFields.Timestamp,
+			Extra:     okfFields.Extra,
 		}
 	}
 
@@ -1059,54 +1092,6 @@ func skipSetextUnderline(source []byte, pos int) int {
 		next++
 	}
 	return next
-}
-
-// stripFrontmatter removes YAML (---) or TOML (+++) frontmatter from the
-// beginning of source. Returns source unchanged if no frontmatter is found.
-func stripFrontmatter(source []byte) []byte {
-	if len(source) < 3 {
-		return source
-	}
-	var fence []byte
-	if bytes.HasPrefix(source, []byte("---")) {
-		fence = []byte("---")
-	} else if bytes.HasPrefix(source, []byte("+++")) {
-		fence = []byte("+++")
-	} else {
-		return source
-	}
-
-	// Opening fence must be alone on the line (optional trailing whitespace)
-	firstNL := bytes.IndexByte(source, '\n')
-	if firstNL < 0 {
-		return source
-	}
-	if len(bytes.TrimSpace(source[:firstNL])) != len(fence) {
-		return source
-	}
-
-	// Find closing fence
-	rest := source[firstNL+1:]
-	for len(rest) > 0 {
-		lineEnd := bytes.IndexByte(rest, '\n')
-		var line []byte
-		if lineEnd < 0 {
-			line = rest
-		} else {
-			line = rest[:lineEnd]
-		}
-		if bytes.Equal(bytes.TrimSpace(line), fence) {
-			if lineEnd < 0 {
-				return nil
-			}
-			return rest[lineEnd+1:]
-		}
-		if lineEnd < 0 {
-			break
-		}
-		rest = rest[lineEnd+1:]
-	}
-	return source
 }
 
 func excludeRangesFromSource(src []byte, ranges [][2]int, offset int) string {
