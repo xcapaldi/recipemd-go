@@ -22,7 +22,7 @@ This format builds on top of structured Markdown such that both humans and progr
 - *1* `scale` — scale a recipe by factor or target yield
 - *1* `flatten` — inline all linked sub-recipe ingredients
 - *1* `renderhtml` — render a recipe as an HTML `<article>`
-- *1* `okf` — render a recipe as an [Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/) concept document
+- *1* `okf` — render a recipe as an [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) concept document
 
 ---
 
@@ -283,15 +283,15 @@ fmt.Print(p.RenderOKF(recipe, 2))
 
 ### Open Knowledge Format (OKF)
 
-[OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/)
+[OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
 is a vendor-neutral spec for sharing curated knowledge with AI systems as
 plain Markdown files with YAML frontmatter; the only required field is `type`.
-`RenderOKF` wraps a recipe in OKF frontmatter (`type: Recipe`, plus `title`,
-`description`, and `tags` copied from the recipe) and uses
-[`Parser.RenderMarkdown`](#rendering) for the body, so the result is both a
-valid OKF concept document and a complete, parseable RecipeMD recipe.
-Because the body is plain RecipeMD, a `Parser` built with `WithFrontmatter`
-parses the OKF output straight back into a `Recipe`.
+`RenderOKF` wraps a recipe in OKF frontmatter (`type: Recipe`, plus the
+spec's recommended `title`, `description`, and `tags` fields copied from the
+recipe) and uses [`Parser.RenderMarkdown`](#rendering) for the body, so the
+result is both a valid OKF concept document and a complete, parseable
+RecipeMD recipe. Because the body is plain RecipeMD, a `Parser` built with
+`WithFrontmatter` parses the OKF output straight back into a `Recipe`.
 
 ## Examples
 

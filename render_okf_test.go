@@ -50,8 +50,8 @@ func TestRenderOKF(t *testing.T) {
 			IngredientGroups: []IngredientGroup{},
 		}
 		got := p.RenderOKF(r, 3)
-		if !strings.Contains(got, `description: "A \"great\" recipe.\nServe warm."`) {
-			t.Errorf("description not properly escaped: %s", got)
+		if !strings.Contains(got, "description: |\n  A \"great\" recipe.\n  Serve warm.\n") {
+			t.Errorf("description block scalar not rendered correctly:\n%s", got)
 		}
 		if !strings.Contains(got, `tags: ["sauce", "vegan"]`) {
 			t.Errorf("tags not rendered: %s", got)
