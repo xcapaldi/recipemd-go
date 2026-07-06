@@ -15,6 +15,7 @@ This format builds on top of structured Markdown such that both humans and progr
 
 - *1 pkg* `github.com/xcapaldi/recipemd-go`
 - *1 pkg* `github.com/yuin/goldmark` Markdown parser
+- *1 pkg* `github.com/goccy/go-yaml` YAML parser (OKF frontmatter)
 
 ## Examples
 
@@ -248,8 +249,49 @@ In addition `WithGithubFormattedMarkdown` enables support for GFM features like 
 parser := recipemd.NewParser(
     recipemd.WithFrontmatter(),             // strip YAML/TOML front matter
     recipemd.WithGithubFormattedMarkdown(), // enable GFM (tables, task lists, …)
+    recipemd.WithOKF(),                     // parse YAML front matter as OKF metadata
 )
 ```
+
+#### Google OKF metadata
+
+`WithOKF` parses YAML frontmatter as [Google Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+metadata, so a recipe can double as an OKF concept document in a knowledge bundle:
+
+```markdown
+---
+type: Recipe
+title: Carbonara
+description: A classic Roman pasta.
+tags: [Italian, pasta]
+timestamp: 2026-05-28T14:30:00Z
+author: Jane Doe
+---
+# Carbonara
+…
+```
+
+The spec-defined fields (`type`, `title`, `description`, `resource`, `tags`,
+`timestamp`) are parsed into typed fields on `recipe.OKF`; any other
+frontmatter key is preserved verbatim in `recipe.OKF.Extensions`, as the spec
+requires. `type` is the only field OKF requires — frontmatter without it is
+reported as a parse error, while a document with no frontmatter at all parses
+normally with `recipe.OKF == nil`.
+
+```go
+parser := recipemd.NewParser(recipemd.WithOKF())
+recipe, _ := parser.Parse(f)
+
+if recipe.OKF != nil {
+    fmt.Println(recipe.OKF.Type)                 // "Recipe"
+    fmt.Println(recipe.OKF.Tags)                 // ["Italian", "pasta"]
+    fmt.Println(recipe.OKF.Extensions["author"]) // "Jane Doe"
+}
+```
+
+`RenderMarkdown` writes the frontmatter (including extension keys) back out,
+and `RenderJSON` includes it under an `"okf"` key, so OKF metadata survives
+round-tripping.
 
 ### Scaling
 

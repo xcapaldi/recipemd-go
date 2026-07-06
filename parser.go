@@ -29,6 +29,25 @@ type Option func(*Parser)
 // the closing fence is removed before the RecipeMD document is parsed.
 func WithFrontmatter() Option { return func(p *Parser) { p.Frontmatter = true } }
 
+// WithOKF returns an [Option] that instructs the parser to parse YAML (---)
+// front matter as Google Open Knowledge Format (OKF) metadata, exposed via
+// [Recipe.OKF].
+//
+// The OKF specification names one required field ("type") and five
+// recommended fields ("title", "description", "resource", "tags",
+// "timestamp"); any other frontmatter key is preserved in [OKF.Extensions].
+// A document without frontmatter parses normally with a nil [Recipe.OKF].
+// Frontmatter that is not valid YAML, or that omits the required "type"
+// field, is reported as a parse error.
+//
+// WithOKF implies stripping the YAML frontmatter before the remaining
+// content is parsed as RecipeMD, so it does not need to be combined with
+// [WithFrontmatter] (though it may be, e.g. to also tolerate TOML front
+// matter).
+//
+// See https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md
+func WithOKF() Option { return func(p *Parser) { p.okf = true } }
+
 // WithGithubFormattedMarkdown returns an [Option] that enables GitHub Flavored
 // Markdown (GFM) extensions in the underlying markdown processor.
 //
@@ -55,6 +74,7 @@ type Parser struct {
 	// Frontmatter reports whether the parser strips YAML/TOML front matter
 	// before parsing. Set via [WithFrontmatter].
 	Frontmatter        bool
+	okf                bool
 	hasTaskList        bool
 	goldmarkProcessor  goldmark.Markdown
 	goldmarkExtensions []goldmark.Extender
@@ -107,6 +127,14 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 		return nil, fmt.Errorf("io.ReadAll: %w", err)
 	}
 
+	var okfMeta *OKF
+	var okfErr error
+	if p.okf {
+		if fence, frontmatter, rest, ok := splitFrontmatter(source); ok && fence == yamlFence {
+			okfMeta, okfErr = ParseOKF(frontmatter)
+			source = rest
+		}
+	}
 	if p.Frontmatter {
 		source = stripFrontmatter(source)
 	}
@@ -114,6 +142,7 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 	document := p.goldmarkProcessor.Parser().Parse(text.NewReader(source))
 
 	recipe := &Recipe{
+		OKF:              okfMeta,
 		Yields:           []Amount{},
 		Tags:             []string{},
 		Ingredients:      []Ingredient{},
@@ -121,6 +150,9 @@ func (p *Parser) Parse(r io.Reader) (*Recipe, error) {
 	}
 
 	var errs error
+	if okfErr != nil {
+		errs = errors.Join(errs, &ParseError{Message: okfErr.Error(), Offset: 0, Line: 1, Column: 1})
+	}
 
 	c := document.FirstChild()
 	if c == nil {
@@ -1061,52 +1093,69 @@ func skipSetextUnderline(source []byte, pos int) int {
 	return next
 }
 
+// Frontmatter fence styles recognised by splitFrontmatter.
+const (
+	yamlFence = "---"
+	tomlFence = "+++"
+)
+
 // stripFrontmatter removes YAML (---) or TOML (+++) frontmatter from the
 // beginning of source. Returns source unchanged if no frontmatter is found.
 func stripFrontmatter(source []byte) []byte {
-	if len(source) < 3 {
-		return source
+	if _, _, rest, ok := splitFrontmatter(source); ok {
+		return rest
 	}
-	var fence []byte
-	if bytes.HasPrefix(source, []byte("---")) {
-		fence = []byte("---")
-	} else if bytes.HasPrefix(source, []byte("+++")) {
-		fence = []byte("+++")
+	return source
+}
+
+// splitFrontmatter splits YAML (---) or TOML (+++) frontmatter from the
+// beginning of source. It returns the fence style, the frontmatter content
+// between the fences, and the remaining source after the closing fence.
+// found is false when source does not start with a complete frontmatter block.
+func splitFrontmatter(source []byte) (fence string, frontmatter, rest []byte, found bool) {
+	if len(source) < 3 {
+		return "", nil, nil, false
+	}
+	if bytes.HasPrefix(source, []byte(yamlFence)) {
+		fence = yamlFence
+	} else if bytes.HasPrefix(source, []byte(tomlFence)) {
+		fence = tomlFence
 	} else {
-		return source
+		return "", nil, nil, false
 	}
 
 	// Opening fence must be alone on the line (optional trailing whitespace)
 	firstNL := bytes.IndexByte(source, '\n')
 	if firstNL < 0 {
-		return source
+		return "", nil, nil, false
 	}
 	if len(bytes.TrimSpace(source[:firstNL])) != len(fence) {
-		return source
+		return "", nil, nil, false
 	}
 
 	// Find closing fence
-	rest := source[firstNL+1:]
-	for len(rest) > 0 {
-		lineEnd := bytes.IndexByte(rest, '\n')
+	body := source[firstNL+1:]
+	pos := 0
+	for pos < len(body) {
+		lineEnd := bytes.IndexByte(body[pos:], '\n')
 		var line []byte
 		if lineEnd < 0 {
-			line = rest
+			line = body[pos:]
 		} else {
-			line = rest[:lineEnd]
+			line = body[pos : pos+lineEnd]
 		}
-		if bytes.Equal(bytes.TrimSpace(line), fence) {
+		if string(bytes.TrimSpace(line)) == fence {
 			if lineEnd < 0 {
-				return nil
+				return fence, body[:pos], nil, true
 			}
-			return rest[lineEnd+1:]
+			return fence, body[:pos], body[pos+lineEnd+1:], true
 		}
 		if lineEnd < 0 {
 			break
 		}
-		rest = rest[lineEnd+1:]
+		pos += lineEnd + 1
 	}
-	return source
+	return "", nil, nil, false
 }
 
 func excludeRangesFromSource(src []byte, ranges [][2]int, offset int) string {

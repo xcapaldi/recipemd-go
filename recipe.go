@@ -17,6 +17,11 @@ type (
 	// Yields, Tags, Ingredients, and IngredientGroups are initialised to
 	// empty (non-nil) slices by [Parser.Parse].
 	Recipe struct {
+		// OKF holds optional Google Open Knowledge Format metadata parsed
+		// from the document's YAML frontmatter. It is only populated when
+		// the parser was created with [WithOKF] and the document carried
+		// frontmatter; nil otherwise.
+		OKF *OKF `json:"okf,omitempty"`
 		// Title is the recipe name, taken from the H1 heading.
 		Title string `json:"title"`
 		// Description is the optional free-form text between the title and

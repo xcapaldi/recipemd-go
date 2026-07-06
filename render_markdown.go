@@ -52,7 +52,9 @@ const mdGroupsTmpl = `{{ range . }}
 // removed). Pass a negative rounding value to use full float64 precision.
 //
 // The returned string contains a complete, parseable RecipeMD document that
-// [Parser.Parse] can round-trip back to an equivalent [Recipe].
+// [Parser.Parse] can round-trip back to an equivalent [Recipe]. When
+// [Recipe.OKF] is set the document is prefixed with the corresponding YAML
+// frontmatter block, preserving extension keys as the OKF spec requires.
 func (p *Parser) RenderMarkdown(r *Recipe, rounding int) string {
 	funcs := renderFuncMap(rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []mdGroupCtx {
@@ -69,5 +71,8 @@ func (p *Parser) RenderMarkdown(r *Recipe, rounding int) string {
 
 	var buf bytes.Buffer
 	_ = tmpl.Execute(&buf, r)
+	if r.OKF != nil {
+		return r.OKF.renderFrontmatter() + "\n" + buf.String()
+	}
 	return buf.String()
 }

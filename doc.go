@@ -24,7 +24,8 @@
 //
 // Options such as [WithFrontmatter] and [WithGithubFormattedMarkdown] can be
 // passed to [NewParser] to handle YAML/TOML front matter and GitHub Flavored
-// Markdown extensions respectively.
+// Markdown extensions respectively. [WithOKF] parses YAML front matter as
+// Google Open Knowledge Format (OKF) metadata, exposed via [Recipe.OKF].
 //
 // # Scaling
 //
