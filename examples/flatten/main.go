@@ -39,5 +39,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Print(p.RenderMarkdown(r, 2))
+	fmt.Print(r.RenderMarkdown(2))
 }

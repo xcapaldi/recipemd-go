@@ -23,7 +23,7 @@ func TestScaleByFactor(t *testing.T) {
 
 	r.Scale(2)
 
-	out := p.RenderMarkdown(r, 2)
+	out := r.RenderMarkdown(2)
 	if !strings.Contains(out, "2 cup") {
 		t.Errorf("expected scaled amount \"2 cup\" in output:\n%s", out)
 	}

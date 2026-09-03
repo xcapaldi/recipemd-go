@@ -54,5 +54,5 @@ func main() {
 		r.Scale(amount.Factor)
 	}
 
-	fmt.Print(p.RenderMarkdown(r, 2))
+	fmt.Print(r.RenderMarkdown(2))
 }

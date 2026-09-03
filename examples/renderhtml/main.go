@@ -42,5 +42,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(p.RenderHTML(r, 3))
+	fmt.Println(r.RenderHTML(3))
 }

@@ -46,14 +46,14 @@ const mdGroupsTmpl = `{{ range . }}
 {{ .Heading }} {{ .Title }}
 {{ template "ingredients" .Ingredients }}{{ template "groups" (.Subgroups) }}{{ end }}`
 
-// RenderMarkdown renders r as a RecipeMD-formatted markdown string.
+// RenderMarkdown renders the recipe as a RecipeMD-formatted markdown string.
 //
 // Numeric amounts are rounded to rounding decimal places (trailing zeros are
 // removed). Pass a negative rounding value to use full float64 precision.
 //
 // The returned string contains a complete, parseable RecipeMD document that
 // [Parser.Parse] can round-trip back to an equivalent [Recipe].
-func (p *Parser) RenderMarkdown(r *Recipe, rounding int) string {
+func (r *Recipe) RenderMarkdown(rounding int) string {
 	funcs := renderFuncMap(rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []mdGroupCtx {
 		out := make([]mdGroupCtx, len(groups))

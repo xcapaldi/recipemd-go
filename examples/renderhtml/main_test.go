@@ -21,7 +21,7 @@ func TestRenderHTMLProducesArticle(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 
-	got := p.RenderHTML(r, 3)
+	got := r.RenderHTML(3)
 
 	if !strings.Contains(got, `class="recipemd-recipe"`) {
 		t.Error("missing recipemd-recipe article element")

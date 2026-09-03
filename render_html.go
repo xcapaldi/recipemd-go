@@ -5,7 +5,46 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+	"sync"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 )
+
+// RenderOption is a functional option for configuring HTML rendering.
+// Options are passed to [Recipe.RenderHTML].
+type RenderOption func(*renderConfig)
+
+// WithGFMRendering returns a [RenderOption] that enables GitHub Flavored
+// Markdown (GFM) extensions when converting the raw markdown held in the
+// Description and Instructions fields to HTML.
+//
+// Pass it when the recipe was parsed by a [Parser] created with
+// [WithGithubFormattedMarkdown], so that GFM constructs such as tables and
+// strikethrough survive the round trip to HTML.
+func WithGFMRendering() RenderOption {
+	return func(c *renderConfig) {
+		c.goldmarkExtensions = append(c.goldmarkExtensions, extension.GFM)
+	}
+}
+
+type renderConfig struct {
+	goldmarkExtensions []goldmark.Extender
+}
+
+// defaultHTMLProcessor is the plain CommonMark processor used when
+// [Recipe.RenderHTML] is called without options. A single instance is shared
+// across calls: goldmark builds a fresh parse context per Convert and guards
+// its lazy renderer initialisation internally.
+var defaultHTMLProcessor = sync.OnceValue(func() goldmark.Markdown { return goldmark.New() })
+
+// processor returns the markdown processor described by the config.
+func (c *renderConfig) processor() goldmark.Markdown {
+	if len(c.goldmarkExtensions) == 0 {
+		return defaultHTMLProcessor()
+	}
+	return goldmark.New(goldmark.WithExtensions(c.goldmarkExtensions...))
+}
 
 type htmlGroupCtx struct {
 	IngredientGroup
@@ -66,14 +105,14 @@ const htmlGroupsTmpl = `{{ range . -}}
 </div>
 {{ end }}`
 
-// RenderHTML renders r as an HTML <article> element.
+// RenderHTML renders the recipe as an HTML <article> element.
 //
 // Numeric amounts are rounded to rounding decimal places (trailing zeros are
 // removed); pass a negative value to use full float64 precision.
 //
 // The Description and Instructions fields, which are stored as raw markdown
-// strings, are converted to HTML using the same markdown processor that was
-// configured on the [Parser]. Ingredient amounts are wrapped in <em> and
+// strings, are converted to HTML with a plain CommonMark processor unless
+// [WithGFMRendering] is supplied. Ingredient amounts are wrapped in <em> and
 // yields in <strong>, mirroring the emphasis encoding used in RecipeMD source.
 // All elements carry CSS class attributes with the prefix "recipemd-" for
 // styling.
@@ -90,8 +129,13 @@ const htmlGroupsTmpl = `{{ range . -}}
 //     in the same section (Description or Instructions) as the usage. Definitions
 //     in one section are not visible when rendering the other, so cross-section
 //     reflinks are silently left unresolved.
-func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
-	funcs := htmlFuncMap(p, rounding)
+func (r *Recipe) RenderHTML(rounding int, opts ...RenderOption) string {
+	cfg := &renderConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
+
+	funcs := htmlFuncMap(cfg.processor(), rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
 		out := make([]htmlGroupCtx, len(groups))
 		for i, g := range groups {
@@ -109,7 +153,7 @@ func (p *Parser) RenderHTML(r *Recipe, rounding int) string {
 	return buf.String()
 }
 
-func htmlFuncMap(p *Parser, rounding int) template.FuncMap {
+func htmlFuncMap(md goldmark.Markdown, rounding int) template.FuncMap {
 	return template.FuncMap{
 		"join": strings.Join,
 		"deref": func(s *string) string {
@@ -131,9 +175,9 @@ func htmlFuncMap(p *Parser, rounding int) template.FuncMap {
 			}
 			return strings.Join(s, ", ")
 		},
-		"renderMD": func(md string) template.HTML {
+		"renderMD": func(src string) template.HTML {
 			var buf bytes.Buffer
-			_ = p.goldmarkProcessor.Convert([]byte(md), &buf)
+			_ = md.Convert([]byte(src), &buf)
 			return template.HTML(buf.String())
 		},
 		"heading": func(level int, title string) template.HTML {
