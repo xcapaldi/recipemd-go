@@ -7,7 +7,6 @@ import (
 
 func TestRenderJSON(t *testing.T) {
 	t.Parallel()
-	p := NewParser()
 	r := &Recipe{
 		Title:            "Test",
 		Yields:           []Amount{{Factor: 4, Unit: new("servings")}},
@@ -15,7 +14,7 @@ func TestRenderJSON(t *testing.T) {
 		Ingredients:      []Ingredient{{Name: "salt"}},
 		IngredientGroups: []IngredientGroup{},
 	}
-	got, err := p.RenderJSON(r)
+	got, err := r.RenderJSON()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ func TestParseProducesValidJSON(t *testing.T) {
 		t.Fatalf("Parse: %v", err)
 	}
 
-	out, err := p.RenderJSON(r)
+	out, err := r.RenderJSON()
 	if err != nil {
 		t.Fatalf("RenderJSON: %v", err)
 	}

@@ -7,8 +7,6 @@ import (
 
 func TestRenderMarkdown(t *testing.T) {
 	t.Parallel()
-	p := NewParser()
-
 	t.Run("minimal", func(t *testing.T) {
 		t.Parallel()
 		r := &Recipe{
@@ -18,7 +16,7 @@ func TestRenderMarkdown(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "salt"}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderMarkdown(r, 3)
+		got := r.RenderMarkdown(3)
 		if got == "" {
 			t.Fatal("empty output")
 		}
@@ -52,7 +50,7 @@ func TestRenderMarkdown(t *testing.T) {
 			},
 			Instructions: &instructions,
 		}
-		got := p.RenderMarkdown(r, 3)
+		got := r.RenderMarkdown(3)
 		if !strings.Contains(got, "# Guac") {
 			t.Error("missing title")
 		}
@@ -88,7 +86,7 @@ func TestRenderMarkdown(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "sauce", Link: new("sauce.md")}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderMarkdown(r, 3)
+		got := r.RenderMarkdown(3)
 		if !strings.Contains(got, "[sauce](sauce.md)") {
 			t.Errorf("missing link rendering in: %s", got)
 		}

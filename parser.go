@@ -42,11 +42,11 @@ func WithGithubFormattedMarkdown() Option {
 	}
 }
 
-// Parser parses RecipeMD documents and renders [Recipe] values back to
-// markdown or JSON.
+// Parser parses RecipeMD documents into [Recipe] values.
 //
 // Create a Parser with [NewParser]. A single Parser instance is safe to reuse
-// across multiple calls to [Parser.Parse] and the render methods.
+// across multiple calls to [Parser.Parse]. Rendering is not a Parser concern:
+// see [Recipe.RenderMarkdown], [Recipe.RenderJSON], and [Recipe.RenderHTML].
 //
 // The exported Frontmatter field reflects whether the [WithFrontmatter] option
 // was supplied at construction time. It should not be modified after the

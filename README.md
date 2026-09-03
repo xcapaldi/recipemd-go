@@ -268,13 +268,17 @@ if err := recipe.ScaleForYield(desired); err != nil {
 
 ```go
 // RecipeMD Markdown (amounts rounded to 2 decimal places)
-fmt.Print(p.RenderMarkdown(recipe, 2))
+fmt.Print(recipe.RenderMarkdown(2))
 
 // Compact JSON
-data, err := p.RenderJSON(recipe)
+data, err := recipe.RenderJSON()
 
 // HTML <article> element (amounts rounded to 3 decimal places) (still WIP)
-fmt.Println(p.RenderHTML(recipe, 3))
+fmt.Println(recipe.RenderHTML(3))
+
+// HTML with GitHub Flavored Markdown extensions, matching a parser
+// created with recipemd.WithGithubFormattedMarkdown()
+fmt.Println(recipe.RenderHTML(3, recipemd.WithGFMRendering()))
 ```
 
 ## Examples

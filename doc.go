@@ -43,10 +43,17 @@
 // # Rendering
 //
 // A [Recipe] can be rendered back to RecipeMD markdown with
-// [Parser.RenderMarkdown], as compact JSON with [Parser.RenderJSON], or as an
-// HTML article element with [Parser.RenderHTML]:
+// [Recipe.RenderMarkdown], as compact JSON with [Recipe.RenderJSON], or as an
+// HTML article element with [Recipe.RenderHTML]:
 //
-//	md := p.RenderMarkdown(recipe, 2) // rounding to 2 decimal places
-//	data, err := p.RenderJSON(recipe)
-//	html := p.RenderHTML(recipe, 2)
+//	md := recipe.RenderMarkdown(2) // rounding to 2 decimal places
+//	data, err := recipe.RenderJSON()
+//	html := recipe.RenderHTML(2)
+//
+// [Recipe.RenderHTML] converts the raw markdown in the Description and
+// Instructions fields with a plain CommonMark processor. Pass
+// [WithGFMRendering] when the recipe was parsed with
+// [WithGithubFormattedMarkdown], so that GFM constructs are preserved:
+//
+//	html := recipe.RenderHTML(2, recipemd.WithGFMRendering())
 package recipemd

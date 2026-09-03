@@ -7,8 +7,6 @@ import (
 
 func TestRenderHTML(t *testing.T) {
 	t.Parallel()
-	p := NewParser()
-
 	t.Run("minimal", func(t *testing.T) {
 		t.Parallel()
 		r := &Recipe{
@@ -18,7 +16,7 @@ func TestRenderHTML(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "salt"}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if got == "" {
 			t.Fatal("empty output")
 		}
@@ -61,7 +59,7 @@ func TestRenderHTML(t *testing.T) {
 			},
 			Instructions: &instructions,
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if !strings.Contains(got, "Guac") {
 			t.Error("missing title")
 		}
@@ -115,7 +113,7 @@ func TestRenderHTML(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "sauce", Link: new("sauce.md")}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if !strings.Contains(got, `href="sauce.md"`) {
 			t.Errorf("missing link href in: %s", got)
 		}
@@ -145,7 +143,7 @@ func TestRenderHTML(t *testing.T) {
 				},
 			},
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if !strings.Contains(got, `<h2 class="recipemd-group-title">Outer</h2>`) {
 			t.Errorf("missing h2 group title in: %s", got)
 		}
@@ -167,7 +165,7 @@ func TestRenderHTML(t *testing.T) {
 			IngredientGroups: []IngredientGroup{},
 			Instructions:     &instructions,
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if !strings.Contains(got, "<strong>bold</strong>") {
 			t.Error("bold not rendered in description")
 		}
@@ -188,7 +186,7 @@ func TestRenderHTML(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "sugar & spice"}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if strings.Contains(got, "<Cake>") {
 			t.Error("title should have < and > escaped")
 		}
@@ -206,9 +204,46 @@ func TestRenderHTML(t *testing.T) {
 			Ingredients:      []Ingredient{{Name: "water"}},
 			IngredientGroups: []IngredientGroup{},
 		}
-		got := p.RenderHTML(r, 3)
+		got := r.RenderHTML(3)
 		if strings.Contains(got, `class="recipemd-preamble"`) {
 			t.Error("preamble should not be present when description/tags/yields are empty")
+		}
+	})
+}
+
+func TestRenderHTMLGFM(t *testing.T) {
+	t.Parallel()
+	instructions := "Strike ~~this~~ out.\n"
+
+	t.Run("commonmark by default", func(t *testing.T) {
+		t.Parallel()
+		r := &Recipe{
+			Title:            "Plain",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "water"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		got := r.RenderHTML(3)
+		if strings.Contains(got, "<del>") {
+			t.Error("strikethrough should not be rendered without WithGFMRendering")
+		}
+	})
+
+	t.Run("gfm when requested", func(t *testing.T) {
+		t.Parallel()
+		r := &Recipe{
+			Title:            "Plain",
+			Yields:           []Amount{},
+			Tags:             []string{},
+			Ingredients:      []Ingredient{{Name: "water"}},
+			IngredientGroups: []IngredientGroup{},
+			Instructions:     &instructions,
+		}
+		got := r.RenderHTML(3, WithGFMRendering())
+		if !strings.Contains(got, "<del>") {
+			t.Errorf("strikethrough should be rendered with WithGFMRendering, got:\n%s", got)
 		}
 	})
 }
