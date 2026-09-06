@@ -135,7 +135,15 @@ func (r *Recipe) RenderHTML(rounding int, opts ...RenderOption) string {
 		o(cfg)
 	}
 
-	funcs := htmlFuncMap(cfg.processor(), rounding)
+	return r.renderHTML(cfg.processor(), rounding)
+}
+
+// renderHTML renders the recipe using an explicit markdown processor for the
+// Description and Instructions fields. It backs both [Recipe.RenderHTML] and
+// the deprecated [Parser.RenderHTML], which supplies the parser's own
+// processor so that its configuration carries over.
+func (r *Recipe) renderHTML(md goldmark.Markdown, rounding int) string {
+	funcs := htmlFuncMap(md, rounding)
 	funcs["topGroups"] = func(groups []IngredientGroup) []htmlGroupCtx {
 		out := make([]htmlGroupCtx, len(groups))
 		for i, g := range groups {

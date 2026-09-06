@@ -47,6 +47,8 @@ func WithGithubFormattedMarkdown() Option {
 // Create a Parser with [NewParser]. A single Parser instance is safe to reuse
 // across multiple calls to [Parser.Parse]. Rendering is not a Parser concern:
 // see [Recipe.RenderMarkdown], [Recipe.RenderJSON], and [Recipe.RenderHTML].
+// The like-named Parser methods are deprecated wrappers kept for v1
+// compatibility.
 //
 // The exported Frontmatter field reflects whether the [WithFrontmatter] option
 // was supplied at construction time. It should not be modified after the
