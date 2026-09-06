@@ -56,4 +56,10 @@
 // [WithGithubFormattedMarkdown], so that GFM constructs are preserved:
 //
 //	html := recipe.RenderHTML(2, recipemd.WithGFMRendering())
+//
+// Through v1.0.0 these were methods on [Parser], taking the recipe as an
+// argument. Those methods still exist and still behave as they did, but they
+// are deprecated and will be removed in v2:
+//
+//	md := p.RenderMarkdown(recipe, 2) // deprecated
 package recipemd
