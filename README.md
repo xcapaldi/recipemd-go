@@ -281,6 +281,10 @@ fmt.Println(recipe.RenderHTML(3))
 fmt.Println(recipe.RenderHTML(3, recipemd.WithGFMRendering()))
 ```
 
+Through v1.0.0 these were methods on the parser, taking the recipe as an
+argument (`p.RenderMarkdown(recipe, 2)`). Those methods still work and still
+behave as they did, but they are deprecated and will be removed in v2.
+
 ## Examples
 
 The `examples/` directory contains small, self-contained programs that
