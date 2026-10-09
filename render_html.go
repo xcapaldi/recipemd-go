@@ -158,7 +158,11 @@ func (r *Recipe) renderHTML(md goldmark.Markdown, rounding int) string {
 
 	var buf bytes.Buffer
 	_ = tmpl.Execute(&buf, r)
-	return buf.String()
+
+	html := buf.String()
+	html = annotateTemperatures(html, rounding)
+	html = annotateTimes(html)
+	return html
 }
 
 func htmlFuncMap(md goldmark.Markdown, rounding int) template.FuncMap {

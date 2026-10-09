@@ -237,3 +237,24 @@ func (g *IngredientGroup) LeafIngredients() []Ingredient {
 	}
 	return result
 }
+
+// ConvertTemperatures rewrites temperature patterns found in the recipe's
+// Description and Instructions fields to the target unit system.
+//
+// Detected patterns include "180°C", "350 °F", "200 celsius", and
+// "375 fahrenheit". Temperatures already in the target unit are left
+// unchanged. The numeric value is converted and rounded to rounding
+// decimal places (trailing zeros removed).
+//
+// This is a mutation method like [Recipe.Scale]; it modifies the receiver
+// in place. Call it before rendering to get converted output in any format.
+func (r *Recipe) ConvertTemperatures(to TemperatureUnit, rounding int) {
+	if r.Description != nil {
+		d := convertTemperaturesInText(*r.Description, to, rounding)
+		r.Description = &d
+	}
+	if r.Instructions != nil {
+		i := convertTemperaturesInText(*r.Instructions, to, rounding)
+		r.Instructions = &i
+	}
+}
