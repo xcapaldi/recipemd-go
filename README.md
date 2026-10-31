@@ -22,6 +22,7 @@ This format builds on top of structured Markdown such that both humans and progr
 - *1* `scale` — scale a recipe by factor or target yield
 - *1* `flatten` — inline all linked sub-recipe ingredients
 - *1* `renderhtml` — render a recipe as an HTML `<article>`
+- *1* `styles` — example stylesheets for the HTML output, minimal to full-featured
 
 ---
 

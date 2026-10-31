@@ -1,0 +1,428 @@
+/*
+ * recipemd 05 — Complete
+ *
+ * A full-featured stylesheet focused on readability while cooking.
+ *
+ *   - Design tokens as CSS custom properties (easy to re-theme).
+ *   - Light and dark themes: follows the OS preference by default and can
+ *     be forced by setting data-theme="light" | "dark" on <html>
+ *     (see README.md for a tiny toggle script).
+ *   - Fluid type and spacing with clamp(); scales from phones to desktops.
+ *   - Two-column layout on wide screens with a sticky ingredient panel.
+ *   - Large touch targets, comfortable measure, tabular amounts.
+ *   - Print, reduced-motion and forced-colors (high contrast) support.
+ *
+ * No web fonts are loaded; the font stacks fall back to good system fonts.
+ */
+
+/* ---------------------------------------------------------------- tokens */
+
+/* Tokens live on :root so the surrounding page can share them. */
+:root {
+  /* Palette — light */
+  --rmd-bg: #fbfaf7;
+  --rmd-surface: #ffffff;
+  --rmd-surface-2: #f3f0ea;
+  --rmd-text: #23201b;
+  --rmd-muted: #6a6359;
+  --rmd-border: #e6e1d8;
+  --rmd-accent: #b0432a;        /* terracotta */
+  --rmd-accent-text: #ffffff;
+  --rmd-accent-soft: #f7e6df;
+  --rmd-herb: #4f6b2f;          /* secondary accent */
+  --rmd-herb-soft: #e8eedd;
+  --rmd-shadow: 0 1px 2px rgb(35 32 27 / 0.06), 0 8px 24px rgb(35 32 27 / 0.06);
+
+  /* Type */
+  --rmd-font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --rmd-font-display: "Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text",
+    Cambria, Georgia, serif;
+  --rmd-step--1: clamp(0.83rem, 0.8rem + 0.15vw, 0.9rem);
+  --rmd-step-0: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --rmd-step-1: clamp(1.15rem, 1.05rem + 0.45vw, 1.35rem);
+  --rmd-step-4: clamp(2.1rem, 1.5rem + 3vw, 3.6rem);
+
+  /* Space & shape */
+  --rmd-space: clamp(1rem, 0.75rem + 1.25vw, 1.75rem);
+  --rmd-radius: 16px;
+  --rmd-measure: 68ch;
+
+  color-scheme: light;
+}
+
+/* Dark palette: shared by the OS preference and the explicit override. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rmd-bg: #151412;
+    --rmd-surface: #1e1c19;
+    --rmd-surface-2: #282521;
+    --rmd-text: #ece7df;
+    --rmd-muted: #a69f94;
+    --rmd-border: #34302a;
+    --rmd-accent: #f0896a;
+    --rmd-accent-text: #1a1310;
+    --rmd-accent-soft: #3b231b;
+    --rmd-herb: #a8c47f;
+    --rmd-herb-soft: #263020;
+    --rmd-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --rmd-bg: #151412;
+  --rmd-surface: #1e1c19;
+  --rmd-surface-2: #282521;
+  --rmd-text: #ece7df;
+  --rmd-muted: #a69f94;
+  --rmd-border: #34302a;
+  --rmd-accent: #f0896a;
+  --rmd-accent-text: #1a1310;
+  --rmd-accent-soft: #3b231b;
+  --rmd-herb: #a8c47f;
+  --rmd-herb-soft: #263020;
+  --rmd-shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.3);
+  color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------- base */
+
+/* Paint the whole page in the recipe background. Remove if the host page
+   manages its own background. */
+:root:has(.recipemd-recipe) {
+  background: var(--rmd-bg);
+  transition: background-color 0.25s ease;
+}
+
+.recipemd-recipe,
+.recipemd-recipe *,
+.recipemd-recipe *::before,
+.recipemd-recipe *::after { box-sizing: border-box; }
+
+.recipemd-recipe {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rmd-space);
+  max-width: 72rem;
+  margin-inline: auto;
+  padding: var(--rmd-space);
+  background: var(--rmd-bg);
+  color: var(--rmd-text);
+  font-family: var(--rmd-font-body);
+  font-size: var(--rmd-step-0);
+  line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.recipemd-recipe a {
+  color: var(--rmd-accent);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+.recipemd-recipe a:hover { text-decoration-thickness: 0.16em; }
+.recipemd-recipe a:focus-visible {
+  outline: 3px solid var(--rmd-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.recipemd-title {
+  margin: 0;
+  max-width: 28ch;
+  font-family: var(--rmd-font-display);
+  font-size: var(--rmd-step-4);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.recipemd-preamble {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.recipemd-description {
+  flex-basis: 100%;
+  max-width: var(--rmd-measure);
+  color: var(--rmd-muted);
+  font-size: var(--rmd-step-1);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.recipemd-description p { margin: 0 0 0.4em; }
+.recipemd-description strong { color: var(--rmd-text); }
+
+.recipemd-tags,
+.recipemd-yields {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  margin: 0;
+  padding: 0.35em 0.9em;
+  border-radius: 999px;
+  font-size: var(--rmd-step--1);
+  line-height: 1.3;
+}
+.recipemd-tags em,
+.recipemd-yields strong { font-style: normal; font-weight: 600; }
+
+.recipemd-yields { background: var(--rmd-herb-soft); color: var(--rmd-herb); }
+.recipemd-tags { background: var(--rmd-surface-2); color: var(--rmd-muted); }
+.recipemd-tags::before { content: "#"; font-weight: 700; color: var(--rmd-accent); }
+
+.recipemd-separator { display: none; }
+
+/* ---------------------------------------------------------------- panels */
+
+.recipemd-ingredients,
+.recipemd-instructions {
+  min-width: 0;
+  padding: var(--rmd-space);
+  border: 1px solid var(--rmd-border);
+  border-radius: var(--rmd-radius);
+  background: var(--rmd-surface);
+  box-shadow: var(--rmd-shadow);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+}
+
+.recipemd-ingredients::before,
+.recipemd-instructions::before {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-family: var(--rmd-font-display);
+  font-size: var(--rmd-step-1);
+  font-weight: 600;
+  color: var(--rmd-text);
+}
+.recipemd-ingredients::before { content: "Ingredients"; }
+.recipemd-instructions::before { content: "Method"; }
+
+/* ---------------------------------------------------------------- ingredients */
+
+.recipemd-ingredients { container-type: inline-size; }
+
+.recipemd-group-title {
+  margin: 1.25rem 0 0.35rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 2px solid var(--rmd-accent-soft);
+  color: var(--rmd-accent);
+  font-size: var(--rmd-step--1);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.recipemd-ingredients > .recipemd-ingredient-group:first-child > .recipemd-group-title {
+  margin-top: 0;
+}
+.recipemd-ingredient-group .recipemd-ingredient-group {
+  margin-left: 0.25rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--rmd-border);
+}
+.recipemd-ingredient-group .recipemd-ingredient-group > .recipemd-group-title {
+  border: 0;
+  color: var(--rmd-muted);
+}
+
+.recipemd-ingredient-list { margin: 0; padding: 0; list-style: none; }
+
+.recipemd-ingredient {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 6.5rem) 1fr;
+  gap: 0.85rem;
+  align-items: baseline;
+  min-height: 2.75rem;          /* comfortable touch target */
+  padding: 0.55rem 0.25rem;
+  border-bottom: 1px solid var(--rmd-border);
+}
+.recipemd-ingredient:last-child { border-bottom: 0; }
+.recipemd-ingredient > :only-child { grid-column: 2; }
+
+.recipemd-amount {
+  font-style: normal;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--rmd-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.recipemd-ingredient-name,
+.recipemd-ingredient-link { overflow-wrap: anywhere; }
+.recipemd-ingredient-link { font-weight: 600; }
+.recipemd-ingredient-link::after { content: " \2197"; font-size: 0.8em; } /* ↗ */
+
+/* Very narrow panel: stack amount above name. */
+@container (max-width: 17rem) {
+  .recipemd-ingredient { grid-template-columns: 1fr; gap: 0; }
+  .recipemd-ingredient > :only-child { grid-column: 1; }
+  .recipemd-amount { text-align: left; }
+}
+
+/* ---------------------------------------------------------------- method */
+
+.recipemd-instructions > * { max-width: var(--rmd-measure); }
+.recipemd-instructions p,
+.recipemd-instructions li { text-wrap: pretty; hyphens: auto; }
+
+.recipemd-instructions ol {
+  counter-reset: rmd-step;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+.recipemd-instructions ol > li {
+  counter-increment: rmd-step;
+  position: relative;
+  padding: 0 0 1.5rem 3.5rem;
+}
+/* Step badge */
+.recipemd-instructions ol > li::before {
+  content: counter(rmd-step);
+  position: absolute;
+  left: 0;
+  top: -0.15rem;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--rmd-accent);
+  color: var(--rmd-accent-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* Thread connecting the steps */
+.recipemd-instructions ol > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(1.125rem - 1px);
+  top: 2.4rem;
+  bottom: 0.2rem;
+  width: 2px;
+  background: var(--rmd-accent-soft);
+}
+.recipemd-instructions ol > li:last-child { padding-bottom: 0; }
+
+.recipemd-instructions ul { padding-left: 1.25rem; }
+.recipemd-instructions strong { color: var(--rmd-accent); }
+
+.recipemd-instructions blockquote {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-left: 4px solid var(--rmd-herb);
+  border-radius: 0 10px 10px 0;
+  background: var(--rmd-herb-soft);
+}
+.recipemd-instructions blockquote p { margin: 0; }
+.recipemd-instructions blockquote strong { color: var(--rmd-herb); }
+
+.recipemd-instructions img { max-width: 100%; height: auto; border-radius: 10px; }
+.recipemd-instructions table { width: 100%; border-collapse: collapse; }
+.recipemd-instructions th,
+.recipemd-instructions td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--rmd-border); }
+.recipemd-instructions code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--rmd-surface-2);
+  font-size: 0.9em;
+}
+
+/* ---------------------------------------------------------------- layout */
+
+@media (min-width: 60rem) {
+  .recipemd-recipe {
+    grid-template-columns: minmax(18rem, 2fr) 3fr;
+    align-items: start;
+    padding-block: calc(var(--rmd-space) * 2);
+  }
+  .recipemd-title,
+  .recipemd-preamble { grid-column: 1 / -1; }
+  .recipemd-ingredients {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+/* Small phones: edge-to-edge panels. */
+@media (max-width: 30rem) {
+  .recipemd-recipe { padding-inline: 0.75rem; }
+  .recipemd-ingredients,
+  .recipemd-instructions { padding: 1rem; border-radius: 12px; }
+  .recipemd-instructions ol > li { padding-left: 2.9rem; }
+}
+
+/* ---------------------------------------------------------------- a11y */
+
+@media (prefers-reduced-motion: reduce) {
+  .recipemd-recipe,
+  .recipemd-recipe * { transition: none !important; }
+}
+
+@media (forced-colors: active) {
+  .recipemd-ingredients,
+  .recipemd-instructions,
+  .recipemd-tags,
+  .recipemd-yields { border: 1px solid CanvasText; }
+  .recipemd-instructions ol > li::before {
+    border: 2px solid CanvasText;
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
+/* ---------------------------------------------------------------- print */
+
+@media print {
+  :root:has(.recipemd-recipe) { background: #fff; }
+  .recipemd-preamble { display: block; }
+  .recipemd-description { margin-bottom: 0.5rem; }
+  .recipemd-tags,
+  .recipemd-yields { display: block; }
+  .recipemd-recipe {
+    display: block;
+    max-width: none;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+  .recipemd-title { font-size: 24pt; max-width: none; }
+  .recipemd-tags,
+  .recipemd-yields { padding: 0; background: none; color: #444; }
+  .recipemd-ingredients,
+  .recipemd-instructions {
+    position: static;
+    margin-top: 1.25rem;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: none;
+  }
+  .recipemd-ingredients { columns: 2; column-gap: 2rem; }
+  .recipemd-ingredients::before { column-span: all; }
+  .recipemd-ingredient-group,
+  .recipemd-ingredient,
+  .recipemd-instructions li { break-inside: avoid; }
+  .recipemd-ingredient { min-height: 0; padding: 0.15rem 0; }
+  .recipemd-instructions ol > li::before {
+    background: none;
+    color: #000;
+    border: 1.5px solid #000;
+  }
+  .recipemd-instructions ol > li::after { display: none; }
+  .recipemd-instructions blockquote { background: none; border-left-color: #000; }
+  .recipemd-instructions strong,
+  .recipemd-instructions blockquote strong { color: inherit; }
+  .recipemd-recipe a { color: inherit; text-decoration: none; }
+  .recipemd-ingredient-link::after { content: none; }
+}
