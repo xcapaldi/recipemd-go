@@ -287,3 +287,55 @@ func TestIngredientGroup_LeafIngredients(t *testing.T) {
 		t.Fatalf("got %d leaves, want 3", len(leaves))
 	}
 }
+
+func TestRecipe_Clone(t *testing.T) {
+	t.Parallel()
+	orig := &Recipe{
+		Title:        "Pasta",
+		Description:  new("A quick dinner."),
+		Yields:       []Amount{{Factor: 4, Unit: new("servings")}},
+		Tags:         []string{"dinner"},
+		Ingredients:  []Ingredient{{Name: "pasta", Amount: &Amount{Factor: 200, Unit: new("g")}, Link: new("pasta.md")}},
+		Instructions: new("Boil."),
+		IngredientGroups: []IngredientGroup{
+			{
+				Title: "Sauce",
+				IngredientGroups: []IngredientGroup{
+					{Title: "Spices", Ingredients: []Ingredient{{Name: "pepper", Amount: &Amount{Factor: 1, Unit: new("tsp")}}}},
+				},
+			},
+		},
+	}
+	want := `{"title":"Pasta","description":"A quick dinner.","yields":[{"factor":"4","unit":"servings"}],"tags":["dinner"],"ingredients":[{"name":"pasta","amount":{"factor":"200","unit":"g"},"link":"pasta.md"}],"ingredient_groups":[{"title":"Sauce","ingredients":null,"ingredient_groups":[{"title":"Spices","ingredients":[{"name":"pepper","amount":{"factor":"1","unit":"tsp"},"link":null}],"ingredient_groups":null}]}],"instructions":"Boil."}`
+
+	c := orig.Clone()
+	if got, _ := json.Marshal(c); string(got) != want {
+		t.Fatalf("clone differs from original:\ngot  %s\nwant %s", got, want)
+	}
+
+	c.Scale(2)
+	*c.Description = "changed"
+	*c.Yields[0].Unit = "changed"
+	c.Tags[0] = "changed"
+	*c.Ingredients[0].Link = "changed"
+	*c.Instructions = "changed"
+	c.IngredientGroups[0].IngredientGroups[0].Title = "changed"
+
+	if got, _ := json.Marshal(orig); string(got) != want {
+		t.Errorf("original changed after clone was modified:\ngot  %s\nwant %s", got, want)
+	}
+}
+
+func TestRecipe_Clone_PreservesNilAndEmpty(t *testing.T) {
+	t.Parallel()
+	c := (&Recipe{Yields: []Amount{}, Tags: nil}).Clone()
+	if c.Yields == nil {
+		t.Error("empty Yields became nil")
+	}
+	if c.Tags != nil {
+		t.Error("nil Tags became non-nil")
+	}
+	if c.Description != nil {
+		t.Error("nil Description became non-nil")
+	}
+}
