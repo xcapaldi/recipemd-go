@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -187,6 +188,61 @@ func (g *IngredientGroup) Scale(factor float64) {
 	for j := range g.IngredientGroups {
 		g.IngredientGroups[j].Scale(factor)
 	}
+}
+
+// Clone returns a deep copy of the recipe. Changes to the copy, such as
+// [Recipe.Scale], do not affect r. Nil slices and pointers stay nil in the copy.
+func (r *Recipe) Clone() *Recipe {
+	return &Recipe{
+		Title:            r.Title,
+		Description:      clonePtr(r.Description),
+		Yields:           cloneSlice(r.Yields, Amount.Clone),
+		Tags:             slices.Clone(r.Tags),
+		Ingredients:      cloneSlice(r.Ingredients, Ingredient.Clone),
+		IngredientGroups: cloneSlice(r.IngredientGroups, IngredientGroup.Clone),
+		Instructions:     clonePtr(r.Instructions),
+	}
+}
+
+// Clone returns a deep copy of the amount.
+func (a Amount) Clone() Amount {
+	return Amount{Factor: a.Factor, Unit: clonePtr(a.Unit)}
+}
+
+// Clone returns a deep copy of the ingredient.
+func (i Ingredient) Clone() Ingredient {
+	c := Ingredient{Name: i.Name, Link: clonePtr(i.Link)}
+	if i.Amount != nil {
+		c.Amount = new(i.Amount.Clone())
+	}
+	return c
+}
+
+// Clone returns a deep copy of the group, including all nested sub-groups.
+func (g IngredientGroup) Clone() IngredientGroup {
+	return IngredientGroup{
+		Title:            g.Title,
+		Ingredients:      cloneSlice(g.Ingredients, Ingredient.Clone),
+		IngredientGroups: cloneSlice(g.IngredientGroups, IngredientGroup.Clone),
+	}
+}
+
+func clonePtr[T any](p *T) *T {
+	if p == nil {
+		return nil
+	}
+	return new(*p)
+}
+
+func cloneSlice[T any](s []T, clone func(T) T) []T {
+	if s == nil {
+		return nil
+	}
+	c := make([]T, len(s))
+	for i, v := range s {
+		c[i] = clone(v)
+	}
+	return c
 }
 
 // Serialize formats the amount as a human-readable string.
