@@ -1,0 +1,19 @@
+/*
+ * recipemd 01 — Minimal
+ *
+ * The smallest useful stylesheet: a readable measure, system fonts and
+ * a little breathing room. Everything else is left to the browser.
+ */
+
+.recipemd-recipe {
+  max-width: 40rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.recipemd-amount {
+  font-style: normal;
+  font-weight: 600;
+}

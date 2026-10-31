@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>recipemd — 05-complete</title>
+<link rel="stylesheet" href="../05-complete.css">
+<style>
+  body { margin: 0; }
+  .theme-toggle { position: fixed; bottom: 1rem; right: 1rem; z-index: 1;
+    padding: 0.4rem 0.8rem; border: 1px solid #8884; border-radius: 999px;
+    background: Canvas; color: CanvasText; font: 0.9rem system-ui, sans-serif; cursor: pointer; }
+  @media print { .theme-toggle { display: none; } }
+</style>
+</head>
+<body>
+<article class="recipemd-recipe">
+<h1 class="recipemd-title">Shakshuka with Herbed Yogurt</h1>
+<div class="recipemd-preamble">
+  <div class="recipemd-description"><p>Eggs gently poached in a smoky, spiced tomato and pepper sauce. A one-pan
+breakfast that works just as well for a <strong>weeknight dinner</strong>.</p>
+</div>
+  <p class="recipemd-tags"><em>North African, vegetarian, one-pan, brunch</em></p>
+  <p class="recipemd-yields"><strong>4 servings, 1 large skillet</strong></p>
+</div>
+<hr class="recipemd-separator">
+<section class="recipemd-ingredients">
+<div class="recipemd-ingredient-group">
+<h2 class="recipemd-group-title">Sauce</h2>
+<ul class="recipemd-ingredient-list">
+<li class="recipemd-ingredient"><em class="recipemd-amount">3 tbsp</em> <span class="recipemd-ingredient-name">olive oil</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">1</em> <span class="recipemd-ingredient-name">yellow onion, finely diced</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">2</em> <span class="recipemd-ingredient-name">red bell peppers, sliced into strips</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">4 cloves</em> <span class="recipemd-ingredient-name">garlic, minced</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">800 g</em> <span class="recipemd-ingredient-name">whole peeled tomatoes, crushed by hand</span>
+  </li>
+</ul>
+<div class="recipemd-ingredient-group">
+<h3 class="recipemd-group-title">Spices</h3>
+<ul class="recipemd-ingredient-list">
+<li class="recipemd-ingredient"><em class="recipemd-amount">2 tsp</em> <span class="recipemd-ingredient-name">ground cumin</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">1.5 tsp</em> <span class="recipemd-ingredient-name">smoked paprika</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">0.25 tsp</em> <span class="recipemd-ingredient-name">cayenne pepper</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">1 tsp</em> <span class="recipemd-ingredient-name">fine sea salt</span>
+  </li>
+</ul>
+
+</div>
+
+</div>
+<div class="recipemd-ingredient-group">
+<h2 class="recipemd-group-title">Eggs &amp; toppings</h2>
+<ul class="recipemd-ingredient-list">
+<li class="recipemd-ingredient"><em class="recipemd-amount">6</em> <span class="recipemd-ingredient-name">large eggs</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">60 g</em> <span class="recipemd-ingredient-name">feta, crumbled</span>
+  </li>
+<li class="recipemd-ingredient"><em class="recipemd-amount">1 handful</em> <span class="recipemd-ingredient-name">fresh parsley and cilantro, chopped</span>
+  </li>
+<li class="recipemd-ingredient"><a class="recipemd-ingredient-link" href="https://recipemd.org/">Herbed yogurt</a>
+  </li>
+<li class="recipemd-ingredient"><span class="recipemd-ingredient-name">crusty bread, for serving</span>
+  </li>
+</ul>
+
+</div>
+</section>
+<hr class="recipemd-separator">
+<section class="recipemd-instructions"><ol>
+<li>Heat the olive oil in a large skillet over medium heat. Add the onion and
+peppers and cook, stirring occasionally, until soft and just beginning to
+colour, about <strong>10 minutes</strong>.</li>
+<li>Stir in the garlic and all the spices. Cook for one minute until fragrant.</li>
+<li>Pour in the tomatoes, bring to a simmer and cook for 10–15 minutes until
+the sauce has thickened. Taste and adjust the salt.</li>
+<li>Make six wells in the sauce with the back of a spoon and crack an egg into
+each. Cover and cook for 5–8 minutes, until the whites are set but the
+yolks are still runny.</li>
+<li>Scatter over the feta and herbs. Serve straight from the pan with the
+yogurt and plenty of bread.</li>
+</ol>
+<blockquote>
+<p><strong>Tip:</strong> Make the sauce a day ahead — the flavour only improves. Reheat
+gently before adding the eggs.</p>
+</blockquote>
+</section>
+</article>
+<button class="theme-toggle" type="button" aria-label="Toggle colour theme">◐ Theme</button>
+<script>
+  // Cycle: system -> light -> dark -> system. Persisted in localStorage.
+  (function () {
+    var root = document.documentElement, key = "recipemd-theme";
+    var saved = localStorage.getItem(key);
+    if (saved) root.dataset.theme = saved;
+    document.querySelector(".theme-toggle").addEventListener("click", function () {
+      var next = { "": "light", light: "dark", dark: "" }[root.dataset.theme || ""];
+      if (next) { root.dataset.theme = next; localStorage.setItem(key, next); }
+      else { delete root.dataset.theme; localStorage.removeItem(key); }
+    });
+  })();
+</script>
+</body>
+</html>
