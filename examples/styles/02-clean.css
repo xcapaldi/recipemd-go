@@ -1,0 +1,61 @@
+/*
+ * recipemd 02 — Clean
+ *
+ * Simple typographic hierarchy: muted metadata, subtle separators,
+ * bulletless ingredient lists with bold amounts. Respects the user's
+ * light/dark preference through `color-scheme` alone.
+ */
+
+.recipemd-recipe {
+  color-scheme: light dark;
+  max-width: 42rem;
+  margin: 2.5rem auto;
+  padding: 0 1.25rem;
+  font: 1.0625rem/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.recipemd-title {
+  margin: 0 0 0.5rem;
+  font-size: 2.25rem;
+  line-height: 1.15;
+}
+
+.recipemd-description p { margin: 0 0 0.75rem; }
+
+.recipemd-tags,
+.recipemd-yields {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+
+.recipemd-tags em { font-style: normal; }
+
+.recipemd-separator {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.15;
+}
+
+.recipemd-group-title {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+h3.recipemd-group-title { font-size: 1rem; opacity: 0.8; }
+
+.recipemd-ingredient-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipemd-ingredient { padding: 0.2rem 0; }
+
+.recipemd-amount {
+  font-style: normal;
+  font-weight: 700;
+}
+
+.recipemd-instructions li { margin-bottom: 0.75rem; }

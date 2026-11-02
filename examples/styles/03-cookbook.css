@@ -1,0 +1,114 @@
+/*
+ * recipemd 03 — Cookbook
+ *
+ * A printed-cookbook feel: serif type, warm paper tones, small-caps
+ * section titles and amounts aligned in their own column. Light only,
+ * by design — it imitates paper.
+ */
+
+.recipemd-recipe {
+  --ink: #2b2118;
+  --muted: #7a6a58;
+  --accent: #a3401f;
+  --paper: #fbf6ee;
+  --rule: #e4d8c6;
+
+  max-width: 44rem;
+  margin: 2rem auto;
+  padding: 3rem clamp(1.25rem, 5vw, 3.5rem);
+  background: var(--paper);
+  color: var(--ink);
+  font: 1.125rem/1.7 "Iowan Old Style", "Palatino Linotype", Palatino,
+    Georgia, "Times New Roman", serif;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 10px 30px rgb(0 0 0 / 0.06);
+}
+
+.recipemd-title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.recipemd-preamble { text-align: center; }
+
+.recipemd-description {
+  margin: 1rem auto 0;
+  max-width: 34rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.recipemd-tags,
+.recipemd-yields {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.recipemd-tags em { font-style: normal; color: var(--accent); }
+.recipemd-yields strong { font-weight: 400; color: var(--muted); }
+
+/* A centred ornament instead of a plain rule. */
+.recipemd-separator {
+  margin: 2.25rem 0;
+  border: 0;
+  text-align: center;
+  overflow: visible;
+}
+.recipemd-separator::after {
+  content: "\2766"; /* ❦ */
+  color: var(--accent);
+  font-size: 1.25rem;
+}
+
+.recipemd-group-title {
+  margin: 1.75rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  border-bottom: 1px solid var(--rule);
+}
+h3.recipemd-group-title { font-size: 0.95rem; color: var(--muted); border: 0; }
+
+.recipemd-ingredient-list { margin: 0; padding: 0; list-style: none; }
+
+/* Amounts in a fixed column so names line up. */
+.recipemd-ingredient {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  gap: 1rem;
+  padding: 0.15rem 0;
+}
+.recipemd-ingredient > :only-child { grid-column: 2; }
+
+.recipemd-amount {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
+.recipemd-ingredient-link { color: var(--accent); }
+
+.recipemd-instructions ol { padding-left: 1.5rem; }
+.recipemd-instructions li { margin-bottom: 1rem; padding-left: 0.25rem; }
+.recipemd-instructions li::marker { color: var(--accent); font-weight: 600; }
+
+.recipemd-instructions blockquote {
+  margin: 1.5rem 0 0;
+  padding: 0.75rem 1.25rem;
+  border-left: 3px solid var(--accent);
+  background: rgb(163 64 31 / 0.06);
+  font-style: italic;
+}
+.recipemd-instructions blockquote p { margin: 0; }
+
+@media (max-width: 30rem) {
+  .recipemd-recipe { margin: 0; box-shadow: none; }
+  .recipemd-ingredient { grid-template-columns: 5rem 1fr; gap: 0.75rem; }
+}
