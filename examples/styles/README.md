@@ -31,16 +31,17 @@ so the responsive rules work on phones.
 
 By default the theme follows the operating system. To let readers choose,
 set `data-theme="light"` or `data-theme="dark"` on `<html>`; remove the
-attribute to go back to the system setting. A minimal toggle:
+attribute to go back to the system setting. A minimal toggle (the
+`.recipemd-theme-toggle` button is styled by the stylesheet):
 
 ```html
-<button class="theme-toggle" type="button">◐ Theme</button>
+<button class="recipemd-theme-toggle" type="button">◐ Theme</button>
 <script>
   (function () {
     var root = document.documentElement, key = "recipemd-theme";
     var saved = localStorage.getItem(key);
     if (saved) root.dataset.theme = saved;
-    document.querySelector(".theme-toggle").addEventListener("click", function () {
+    document.querySelector(".recipemd-theme-toggle").addEventListener("click", function () {
       // system -> light -> dark -> system
       var next = { "": "light", light: "dark", dark: "" }[root.dataset.theme || ""];
       if (next) { root.dataset.theme = next; localStorage.setItem(key, next); }
