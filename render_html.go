@@ -67,10 +67,18 @@ const htmlMainTmpl = `<article class="recipemd-recipe">
   <div class="recipemd-description">{{ renderMD . }}</div>
   {{- end }}
   {{- if .Tags }}
-  <p class="recipemd-tags"><em>{{ join .Tags ", " }}</em></p>
+  <ul class="recipemd-tags">
+    {{- range .Tags }}
+    <li class="recipemd-tag">{{ . }}</li>
+    {{- end }}
+  </ul>
   {{- end }}
   {{- if .Yields }}
-  <p class="recipemd-yields"><strong>{{ serializeYields .Yields }}</strong></p>
+  <p class="recipemd-yields"><strong>
+    {{- range $i, $y := .Yields }}{{ if $i }}, {{ end -}}
+    <span class="recipemd-yield" {{ template "amountAttrs" $y }}>{{ template "amountParts" $y }}</span>
+    {{- end -}}
+  </strong></p>
   {{- end }}
 </div>
 {{- end }}
@@ -89,13 +97,24 @@ const htmlIngredientsTmpl = `{{ if . -}}
 <ul class="recipemd-ingredient-list">
 {{ range . -}}
   <li class="recipemd-ingredient">
-    {{- if .Amount }}<em class="recipemd-amount">{{ serializeAmount .Amount }}</em> {{ end -}}
+    {{- with .Amount }}<em class="recipemd-amount" {{ template "amountAttrs" . }}>{{ template "amountParts" . }}</em> {{ end -}}
     {{- if .Link }}<a class="recipemd-ingredient-link" href="{{ deref .Link }}">{{ .Name }}</a>
     {{- else }}<span class="recipemd-ingredient-name">{{ .Name }}</span>{{ end }}
   </li>
 {{ end -}}
 </ul>
 {{ end }}`
+
+// htmlAmountAttrsTmpl emits the machine-readable data attributes for an
+// amount. data-factor always carries full float64 precision regardless of the
+// rounding used for display, so client-side code can rescale without
+// compounding rounding errors.
+const htmlAmountAttrsTmpl = `data-factor="{{ rawFactor . }}"{{ with .Unit }} data-unit="{{ . }}"{{ end }}`
+
+// htmlAmountPartsTmpl emits the human-readable amount, with factor and unit
+// wrapped separately so either can be restyled or rewritten independently.
+const htmlAmountPartsTmpl = `<span class="recipemd-amount-factor">{{ formatFactor . }}</span>
+{{- with .Unit }} <span class="recipemd-amount-unit">{{ . }}</span>{{ end }}`
 
 const htmlGroupsTmpl = `{{ range . -}}
 <div class="recipemd-ingredient-group">
@@ -116,6 +135,19 @@ const htmlGroupsTmpl = `{{ range . -}}
 // yields in <strong>, mirroring the emphasis encoding used in RecipeMD source.
 // All elements carry CSS class attributes with the prefix "recipemd-" for
 // styling.
+//
+// The markup is also structured for client-side scripting:
+//   - Each tag is its own <li class="recipemd-tag"> inside
+//     <ul class="recipemd-tags">, so tags can be styled individually (e.g. as
+//     pills).
+//   - Each yield is wrapped in <span class="recipemd-yield">, and each
+//     ingredient amount is <em class="recipemd-amount">. Both carry a
+//     data-factor attribute holding the unrounded numeric factor and, when the
+//     amount has a unit, a data-unit attribute. Their visible text is split
+//     into <span class="recipemd-amount-factor"> (rounded per rounding) and
+//     <span class="recipemd-amount-unit">. A script can therefore rescale a
+//     recipe by selecting [data-factor], multiplying dataset.factor, and
+//     rewriting the .recipemd-amount-factor text, without parsing any text.
 //
 // Ingredient groups are rendered as nested <div> blocks; the heading level
 // starts at h2 for top-level groups and increments for each sub-level.
@@ -155,6 +187,8 @@ func (r *Recipe) renderHTML(md goldmark.Markdown, rounding int) string {
 	tmpl := template.Must(template.New("recipemd").Funcs(funcs).Parse(htmlMainTmpl))
 	template.Must(tmpl.New("ingredients").Parse(htmlIngredientsTmpl))
 	template.Must(tmpl.New("groups").Parse(htmlGroupsTmpl))
+	template.Must(tmpl.New("amountAttrs").Parse(htmlAmountAttrsTmpl))
+	template.Must(tmpl.New("amountParts").Parse(htmlAmountPartsTmpl))
 
 	var buf bytes.Buffer
 	_ = tmpl.Execute(&buf, r)
@@ -170,19 +204,8 @@ func htmlFuncMap(md goldmark.Markdown, rounding int) template.FuncMap {
 			}
 			return *s
 		},
-		"serializeAmount": func(a *Amount) string {
-			if a == nil {
-				return ""
-			}
-			return a.Serialize(rounding)
-		},
-		"serializeYields": func(yields []Amount) string {
-			s := make([]string, len(yields))
-			for i, y := range yields {
-				s[i] = y.Serialize(rounding)
-			}
-			return strings.Join(s, ", ")
-		},
+		"formatFactor": func(a Amount) string { return a.FormatFactor(rounding) },
+		"rawFactor":    func(a Amount) string { return a.FormatFactor(-1) },
 		"renderMD": func(src string) template.HTML {
 			var buf bytes.Buffer
 			_ = md.Convert([]byte(src), &buf)
