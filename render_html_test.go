@@ -151,6 +151,12 @@ func TestRenderHTML(t *testing.T) {
 		if !strings.Contains(got, `<h3 class="recipemd-group-title">Inner</h3>`) {
 			t.Errorf("missing h3 nested group title in: %s", got)
 		}
+		if !strings.Contains(got, `<div class="recipemd-ingredient-group" data-level="2">`+"\n"+`<h2 class="recipemd-group-title">Outer</h2>`) {
+			t.Errorf("missing data-level=2 on outer group in: %s", got)
+		}
+		if !strings.Contains(got, `<div class="recipemd-ingredient-group" data-level="3">`+"\n"+`<h3 class="recipemd-group-title">Inner</h3>`) {
+			t.Errorf("missing data-level=3 on inner group in: %s", got)
+		}
 	})
 
 	t.Run("markdown in description and instructions", func(t *testing.T) {

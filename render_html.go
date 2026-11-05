@@ -117,7 +117,7 @@ const htmlAmountPartsTmpl = `<span class="recipemd-amount-factor">{{ formatFacto
 {{- with .Unit }} <span class="recipemd-amount-unit">{{ . }}</span>{{ end }}`
 
 const htmlGroupsTmpl = `{{ range . -}}
-<div class="recipemd-ingredient-group">
+<div class="recipemd-ingredient-group" data-level="{{ .Level }}">
 {{ heading .Level .Title }}
 {{ template "ingredients" .Ingredients -}}
 {{ template "groups" .Subgroups }}
@@ -150,7 +150,8 @@ const htmlGroupsTmpl = `{{ range . -}}
 //     rewriting the .recipemd-amount-factor text, without parsing any text.
 //
 // Ingredient groups are rendered as nested <div> blocks; the heading level
-// starts at h2 for top-level groups and increments for each sub-level.
+// starts at h2 for top-level groups and increments for each sub-level. Each
+// group <div> carries a data-level attribute with that heading level.
 //
 // WARNING: This method is a work-in-progress and not yet ready for production
 // use. Known limitations:
