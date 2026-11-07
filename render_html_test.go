@@ -72,14 +72,15 @@ func TestRenderHTML(t *testing.T) {
 		if !strings.Contains(got, `class="recipemd-tags"`) {
 			t.Error("missing tags class")
 		}
-		if !strings.Contains(got, "<em>sauce, vegan</em>") {
-			t.Error("missing tags in em")
+		if !strings.Contains(got, `<li class="recipemd-tag">sauce</li>`) ||
+			!strings.Contains(got, `<li class="recipemd-tag">vegan</li>`) {
+			t.Errorf("missing per-tag elements in: %s", got)
 		}
 		if !strings.Contains(got, `class="recipemd-yields"`) {
 			t.Error("missing yields class")
 		}
-		if !strings.Contains(got, "<strong>4 servings</strong>") {
-			t.Error("missing yields in strong")
+		if !strings.Contains(got, `<strong><span class="recipemd-yield" data-factor="4" data-unit="servings">`) {
+			t.Errorf("missing yield span in strong: %s", got)
 		}
 		if !strings.Contains(got, `class="recipemd-amount"`) {
 			t.Error("missing amount class")
@@ -150,6 +151,12 @@ func TestRenderHTML(t *testing.T) {
 		if !strings.Contains(got, `<h3 class="recipemd-group-title">Inner</h3>`) {
 			t.Errorf("missing h3 nested group title in: %s", got)
 		}
+		if !strings.Contains(got, `<div class="recipemd-ingredient-group" data-level="2">`+"\n"+`<h2 class="recipemd-group-title">Outer</h2>`) {
+			t.Errorf("missing data-level=2 on outer group in: %s", got)
+		}
+		if !strings.Contains(got, `<div class="recipemd-ingredient-group" data-level="3">`+"\n"+`<h3 class="recipemd-group-title">Inner</h3>`) {
+			t.Errorf("missing data-level=3 on inner group in: %s", got)
+		}
 	})
 
 	t.Run("markdown in description and instructions", func(t *testing.T) {
@@ -209,6 +216,36 @@ func TestRenderHTML(t *testing.T) {
 			t.Error("preamble should not be present when description/tags/yields are empty")
 		}
 	})
+}
+
+func TestRenderHTMLDataAttributes(t *testing.T) {
+	t.Parallel()
+	r := &Recipe{
+		Title:  "Scalable",
+		Tags:   []string{"a & b"},
+		Yields: []Amount{{Factor: 12, Unit: new("cookies")}, {Factor: 1.0 / 3}},
+		Ingredients: []Ingredient{
+			{Name: "sugar", Amount: &Amount{Factor: 1.0 / 3, Unit: new(`"cup"`)}},
+			{Name: "eggs", Amount: &Amount{Factor: 2}},
+		},
+		IngredientGroups: []IngredientGroup{},
+	}
+	got := r.RenderHTML(2)
+
+	for _, want := range []string{
+		// tags escaped, one element each
+		`<li class="recipemd-tag">a &amp; b</li>`,
+		// yields: one span each, comma-separated, unrounded data-factor
+		`<span class="recipemd-yield" data-factor="12" data-unit="cookies"><span class="recipemd-amount-factor">12</span> <span class="recipemd-amount-unit">cookies</span></span>, <span class="recipemd-yield" data-factor="0.3333333333333333"><span class="recipemd-amount-factor">0.33</span></span>`,
+		// unit is attribute-escaped
+		`<em class="recipemd-amount" data-factor="0.3333333333333333" data-unit="&#34;cup&#34;"><span class="recipemd-amount-factor">0.33</span> <span class="recipemd-amount-unit">&#34;cup&#34;</span></em>`,
+		// unitless amount has no data-unit or unit span
+		`<em class="recipemd-amount" data-factor="2"><span class="recipemd-amount-factor">2</span></em> <span class="recipemd-ingredient-name">eggs</span>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s\nin:\n%s", want, got)
+		}
+	}
 }
 
 func TestRenderHTMLGFM(t *testing.T) {

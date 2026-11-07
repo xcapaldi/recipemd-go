@@ -281,6 +281,20 @@ fmt.Println(recipe.RenderHTML(3))
 fmt.Println(recipe.RenderHTML(3, recipemd.WithGFMRendering()))
 ```
 
+The HTML is meant to be styled and scripted. Each tag is its own
+`<li class="recipemd-tag">`. Every ingredient amount (`.recipemd-amount`) and
+every yield (`.recipemd-yield`) has a `data-factor` attribute with the
+unrounded number, plus `data-unit` when there is a unit. The visible number
+sits in `.recipemd-amount-factor`. So a page can rescale the recipe without
+parsing any text:
+
+```js
+for (const el of document.querySelectorAll(".recipemd-recipe [data-factor]")) {
+  el.querySelector(".recipemd-amount-factor").textContent =
+    +(el.dataset.factor * scale).toFixed(2);
+}
+```
+
 Through v1.0.0 these were methods on the parser, taking the recipe as an
 argument (`p.RenderMarkdown(recipe, 2)`). Those methods still work and still
 behave as they did, but they are deprecated and will be removed in v2.
