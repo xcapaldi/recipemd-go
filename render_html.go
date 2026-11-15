@@ -107,6 +107,11 @@ const htmlGroupsTmpl = `{{ range . -}}
 
 // RenderHTML renders the recipe as an HTML <article> element.
 //
+// RenderHTML is a simple reference renderer with deliberately plain markup.
+// If you need different markup, write your own renderer over the exported
+// [Recipe] fields; see the "Custom renderers" section of the package
+// documentation.
+//
 // Numeric amounts are rounded to rounding decimal places (trailing zeros are
 // removed); pass a negative value to use full float64 precision.
 //
