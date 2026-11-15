@@ -62,4 +62,25 @@
 // are deprecated and will be removed in v2:
 //
 //	md := p.RenderMarkdown(recipe, 2) // deprecated
+//
+// # Custom renderers
+//
+// [Recipe.RenderHTML] is a simple reference renderer, not a configurable one.
+// For different markup, write your own: a renderer is any function that takes
+// a *[Recipe], since every field is exported. Keep in mind:
+//
+//   - Description, Instructions, [Ingredient].Amount, [Ingredient].Link and
+//     [Amount].Unit are pointers that are nil when absent from the source.
+//   - Description and Instructions hold raw markdown; convert it with a
+//     markdown library such as goldmark, enabling GFM if the recipe was
+//     parsed with [WithGithubFormattedMarkdown].
+//   - [IngredientGroup] values nest to any depth and do not store a heading
+//     level, so walk them recursively and track depth yourself.
+//   - [Amount.FormatFactor] rounds for display; FormatFactor(-1) gives full
+//     precision for machine-readable output.
+//   - Links are kept exactly as written in the source.
+//
+// The examples/customhtml program in the repository is a complete
+// html/template renderer that adds per-tag elements and data attributes for
+// client-side scaling.
 package recipemd

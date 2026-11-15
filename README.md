@@ -285,6 +285,49 @@ Through v1.0.0 these were methods on the parser, taking the recipe as an
 argument (`p.RenderMarkdown(recipe, 2)`). Those methods still work and still
 behave as they did, but they are deprecated and will be removed in v2.
 
+### Writing your own renderer
+
+`RenderHTML` is a simple reference renderer. Its markup is deliberately plain
+and won't grow to fit every site. If you need different markup, such as tags
+styled as pills or amounts your page rescales in the browser, write your own
+renderer. There is nothing to register: a renderer is any function that takes
+a `*recipemd.Recipe`, because every field of a recipe is exported.
+
+What you need to know:
+
+- **Optional fields are pointers.** `Description`, `Instructions`,
+  `Ingredient.Amount`, `Ingredient.Link` and `Amount.Unit` are `nil` when the
+  source didn't have them. Slices are never `nil` after `Parse`, but they can
+  be empty.
+- **Description and Instructions are raw markdown.** Convert them yourself,
+  for example with [goldmark](https://github.com/yuin/goldmark). If you parsed
+  with `WithGithubFormattedMarkdown()`, use `goldmark.WithExtensions(extension.GFM)`
+  so tables and strikethrough survive.
+- **Ingredient groups nest.** `IngredientGroup.IngredientGroups` holds
+  subgroups to any depth, so walk them recursively. The heading level isn't
+  stored; work it out from the depth.
+- **Format numbers with the helpers.** `Amount.FormatFactor(n)` rounds to `n`
+  decimal places and trims trailing zeros. `FormatFactor(-1)` gives full
+  precision, which is what you want in a machine-readable attribute.
+  `Amount.Serialize` and `Ingredient.Serialize` give "200 g" and
+  "200 g flour".
+- **Links are raw.** `Ingredient.Link` is the path as written in the source
+  (often a `.md` file), so map it to your own URLs.
+- **Scale before rendering.** Call `Scale` or `ScaleForYield` first, on a
+  `Clone()` if you need to keep the original.
+
+[`examples/customhtml`](examples/customhtml) is a complete renderer built on
+`html/template`. It puts each tag in its own `<li>`, puts the unrounded factor
+on every amount and yield as `data-factor`, and marks group nesting with
+`data-level`. A page can then rescale the recipe without parsing text:
+
+```js
+for (const el of document.querySelectorAll(".recipe [data-factor]")) {
+  const unit = el.dataset.unit ? " " + el.dataset.unit : "";
+  el.textContent = +(el.dataset.factor * scale).toFixed(2) + unit;
+}
+```
+
 ## Examples
 
 The `examples/` directory contains small, self-contained programs that
@@ -296,6 +339,7 @@ demonstrate common use cases:
 | [`examples/scale`](examples/scale) | Scale a recipe by factor or target yield, write RecipeMD to stdout |
 | [`examples/flatten`](examples/flatten) | Inline all linked sub-recipes, write RecipeMD to stdout |
 | [`examples/renderhtml`](examples/renderhtml) | Flatten and render as an HTML `<article>` |
+| [`examples/customhtml`](examples/customhtml) | Render HTML with your own template instead of `RenderHTML` |
 
 Run any example directly:
 
@@ -304,6 +348,7 @@ go run ./examples/parse   carbonara.md
 go run ./examples/scale   carbonara.md "4 servings"
 go run ./examples/flatten main_dish.md
 go run ./examples/renderhtml carbonara.md
+go run ./examples/customhtml carbonara.md
 ```
 
 ## Running tests
